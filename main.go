@@ -42,12 +42,8 @@ func main() {
 func initServer(port string) *http.Server {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/login", handlers.LoginHandler)
-	mux.HandleFunc("/protected", handlers.AuthMiddleware(handlers.ProtectedHandler))
-	mux.HandleFunc("/register", handlers.Register)
-	mux.HandleFunc("/loginCheck", handlers.LoginCheck)
-	mux.HandleFunc("/img", handlers.AuthMiddleware(handlers.Image))
-	mux.HandleFunc("/upload", handlers.AuthMiddleware(handlers.Upload))
+	mux.HandleFunc("/img", handlers.WalletMiddleware(handlers.Image))
+	mux.HandleFunc("/upload", handlers.WalletMiddleware(handlers.Upload))
 
 	mux.HandleFunc("/registerKey", handlers.RegisterKey)
 	mux.HandleFunc("/challange", handlers.GetLoginChal)
