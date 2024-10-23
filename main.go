@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"os"
 
-	"gitlab.com/acsermely/permit-v0/server/src/config"
-	"gitlab.com/acsermely/permit-v0/server/src/db"
-	"gitlab.com/acsermely/permit-v0/server/src/distributed"
-	"gitlab.com/acsermely/permit-v0/server/src/handlers"
+	"github.com/acsermely/veracy.server/src/config"
+	"github.com/acsermely/veracy.server/src/db"
+	"github.com/acsermely/veracy.server/src/distributed"
+	"github.com/acsermely/veracy.server/src/handlers"
 )
 
 func init() {

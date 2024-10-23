@@ -10,9 +10,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/acsermely/veracy.server/src/db"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"gitlab.com/acsermely/permit-v0/server/src/db"
 )
 
 func RegisterKey(w http.ResponseWriter, r *http.Request) {

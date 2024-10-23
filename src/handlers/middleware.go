@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/acsermely/veracy.server/src/db"
 	"github.com/golang-jwt/jwt/v4"
-	"gitlab.com/acsermely/permit-v0/server/src/db"
 )
 
 type key int

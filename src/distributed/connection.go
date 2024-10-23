@@ -9,11 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/acsermely/veracy.server/src/config"
+	"github.com/acsermely/veracy.server/src/db"
+	"github.com/acsermely/veracy.server/src/proto/github.com/acsermely/veracy.server/distributed/pb"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/protocol"
-	"gitlab.com/acsermely/permit-v0/server/src/config"
-	"gitlab.com/acsermely/permit-v0/server/src/db"
+	"google.golang.org/protobuf/proto"
 )
 
 var Node *ContentNode
@@ -75,17 +77,23 @@ func handleStream(s network.Stream, id string) {
 			if err == io.EOF {
 				break
 			}
-			fmt.Println("Error reading from file:", err)
+			fmt.Println("Error reading Data:", err)
 			return
 		}
 		data = append(data, buffer[:n]...)
 	}
-	c, ok := arriveChans[id]
 
+	transferData := &pb.ImageTransferData{}
+	if err := proto.Unmarshal(data, transferData); err != nil {
+		fmt.Println("Error while Unmarshal", err)
+	}
+
+	c, ok := arriveChans[transferData.Id]
 	if !ok {
 		fmt.Printf("No chanel for: %v\n", id)
 	}
-	c <- data
+
+	c <- transferData.Data
 	close(c)
 }
 
@@ -117,12 +125,24 @@ func listenToNeedTopic(sub *pubsub.Subscription) {
 			continue
 		}
 
+		transferData := &pb.ImageTransferData{
+			Id:   id,
+			Data: imageData,
+		}
+
+		data, err := proto.Marshal(transferData)
+		if err != nil {
+			fmt.Println("PB Marshal error")
+			fmt.Println(err)
+			continue
+		}
+
 		s, err := Node.h.NewStream(ctx, m.ReceivedFrom, IMAGE_TRANSFER_PROTOCOL)
 		if err != nil {
 			continue
 		}
 		w := bufio.NewWriter(s)
-		_, err = w.Write(imageData)
+		_, err = w.Write(data)
 		if err != nil {
 			panic(err)
 		}

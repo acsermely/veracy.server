@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"gitlab.com/acsermely/permit-v0/server/src/common"
+	"github.com/acsermely/veracy.server/src/common"
 )
 
 func Query(query string) ([]byte, error) {

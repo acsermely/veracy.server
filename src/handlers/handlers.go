@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/acsermely/veracy.server/src/arweave"
+	"github.com/acsermely/veracy.server/src/db"
+	"github.com/acsermely/veracy.server/src/distributed"
 	"github.com/golang-jwt/jwt/v4"
-	"gitlab.com/acsermely/permit-v0/server/src/arweave"
-	"gitlab.com/acsermely/permit-v0/server/src/db"
-	"gitlab.com/acsermely/permit-v0/server/src/distributed"
 	"golang.org/x/crypto/bcrypt"
 )
 
