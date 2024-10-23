@@ -32,7 +32,8 @@ func main() {
 	initDistributedConnection(&conf)
 
 	log.Printf("Server started at %v\n", port)
-	err = server.ListenAndServe()
+	err = server.ListenAndServeTLS("", "")
+	// err = server.ListenAndServe()
 	if err != nil {
 		log.Fatalf("failed to start server: %s", err)
 	}
