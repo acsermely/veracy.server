@@ -171,3 +171,9 @@ func LoginWhitChal(w http.ResponseWriter, r *http.Request) {
 		Expires:  time.Now().Add(JWT_COOKIE_EXPIRATION).UTC(),
 	})
 }
+
+func LoginCheckKeyHandler(w http.ResponseWriter, r *http.Request) {
+	storedUser := r.Context().Value(CONTEXT_USER_OBJECT_KEY).(db.UserKey)
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(storedUser.WalletID))
+}

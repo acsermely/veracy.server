@@ -44,6 +44,7 @@ func initServer(port string) *http.Server {
 
 	mux.HandleFunc("/img", handlers.WalletMiddleware(handlers.Image))
 	mux.HandleFunc("/upload", handlers.WalletMiddleware(handlers.Upload))
+	mux.HandleFunc("/loginCheck", handlers.WalletMiddleware(handlers.LoginCheckKeyHandler))
 
 	mux.HandleFunc("/registerKey", handlers.RegisterKey)
 	mux.HandleFunc("/challange", handlers.GetLoginChal)
