@@ -40,6 +40,7 @@ func Connect(conf *config.AppConfig) *ContentNode {
 	if err != nil {
 		println("Subscription error for NEED_BROADCAST", err)
 	}
+	Node.h.SetStreamHandler(IMAGE_TRANSFER_PROTOCOL, handleStream)
 	go listenToNeedTopic(sub)
 
 	return Node
@@ -50,12 +51,7 @@ func NeedById(id string) ([]byte, error) {
 		return nil, fmt.Errorf("invalid id")
 	}
 	arriveChans[id] = make(chan []byte)
-	Node.h.SetStreamHandler(IMAGE_TRANSFER_PROTOCOL, func(s network.Stream) {
-		handleStream(s, id)
-	})
 	Node.Topics[NEED_BROADCAST_TOPIC].Publish(ctx, []byte(id))
-
-	defer Node.h.RemoveStreamHandler(IMAGE_TRANSFER_PROTOCOL)
 
 	select {
 	case data := <-arriveChans[id]:
@@ -66,7 +62,7 @@ func NeedById(id string) ([]byte, error) {
 	}
 }
 
-func handleStream(s network.Stream, id string) {
+func handleStream(s network.Stream) {
 	r := bufio.NewReader(s)
 
 	data := []byte{}
@@ -90,7 +86,7 @@ func handleStream(s network.Stream, id string) {
 
 	c, ok := arriveChans[transferData.Id]
 	if !ok {
-		fmt.Printf("No chanel for: %v\n", id)
+		fmt.Printf("No chanel for: %v\n", transferData.Id)
 	}
 
 	c <- transferData.Data
