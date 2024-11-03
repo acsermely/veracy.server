@@ -31,7 +31,6 @@ const (
 		"chal" TEXT
     );`
 
-	dropKeysTableSQL = `DROP TABLE IF EXISTS keys`
 )
 
 type User struct {

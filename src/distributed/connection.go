@@ -7,6 +7,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/acsermely/veracy.server/src/config"
@@ -21,7 +22,8 @@ import (
 var Node *ContentNode
 var IsUp = false
 var ctx context.Context
-var arriveChans map[string]chan []byte
+var arriveChans map[string]chan []byte // This doesnt scale if users need the same ID
+var arriveMutex sync.Mutex
 
 const (
 	NEED_BROADCAST_TOPIC                = "need-broadcast-topic"
@@ -31,7 +33,9 @@ const (
 func Connect(conf *config.AppConfig) *ContentNode {
 	ctx = context.Background()
 
+	arriveMutex.Lock()
 	arriveChans = make(map[string]chan []byte)
+	arriveMutex.Unlock()
 
 	addrs := []string{"/ip4/0.0.0.0/udp/8078/quic-v1", "/ip4/0.0.0.0/tcp/8079"}
 	Node = NewNode(ctx, addrs, conf.Bootstrap)
@@ -50,14 +54,21 @@ func NeedById(id string) ([]byte, error) {
 	if len(id) == 0 {
 		return nil, fmt.Errorf("invalid id")
 	}
+	arriveMutex.Lock()
 	arriveChans[id] = make(chan []byte)
+	arriveMutex.Unlock()
 	Node.Topics[NEED_BROADCAST_TOPIC].Publish(ctx, []byte(id))
 
 	select {
 	case data := <-arriveChans[id]:
+		arriveMutex.Lock()
 		delete(arriveChans, id)
+		arriveMutex.Unlock()
 		return data, nil
 	case <-time.After(5 * time.Second):
+		arriveMutex.Lock()
+		delete(arriveChans, id)
+		arriveMutex.Unlock()
 		return nil, fmt.Errorf("timeout")
 	}
 }

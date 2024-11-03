@@ -50,10 +50,6 @@ func CheckPayment(sender string, tx string) (bool, error) {
 			edges {
 				node {
 					id
-					recipient
-					owner {
-						address
-					}
 				}
 			}
 		}
@@ -61,6 +57,7 @@ func CheckPayment(sender string, tx string) (bool, error) {
 
 	jsonData, err := Query(query)
 	if err != nil {
+		fmt.Println("Query error:", err)
 		return false, err
 	}
 
@@ -75,4 +72,33 @@ func CheckPayment(sender string, tx string) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+func IsDataPrivate(fullId string, tx string) (bool, error) {
+	postData, err := getTxById(tx)
+	if err != nil {
+		return false, err
+	}
+	for _, content := range postData.Content {
+		if content.Data == fullId {
+			isPrivate := content.Privacy == common.TX_POST_PRIVACY_PRIVATE
+			return isPrivate, nil
+		}
+	}
+	return false, fmt.Errorf("ID not found")
+}
+
+func getTxById(txId string) (*common.Post, error) {
+	response, err := http.Get(fmt.Sprintf("%s/%s", common.ARWEAVE_URL, txId))
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	var post common.Post
+	if err := json.NewDecoder(response.Body).Decode(&post); err != nil {
+		return nil, err
+	}
+	post.ID = txId
+	return &post, nil
 }

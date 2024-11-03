@@ -16,7 +16,7 @@ const (
 	CONTEXT_USER_OBJECT_KEY key = 0
 )
 
-func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+func WalletMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -42,9 +42,9 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		var userName string
+		var userWallet string
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-			userName = claims["user"].(string)
+			userWallet = claims["user"].(string)
 		} else {
 			fmt.Println("invalid token")
 			w.WriteHeader(http.StatusUnauthorized)
@@ -52,13 +52,13 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		user, err := db.GetUser(userName)
+		keyEntry, err := db.GetUserKey(userWallet)
 		if err != nil {
 			http.Error(w, "User not found", http.StatusUnauthorized)
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), CONTEXT_USER_OBJECT_KEY, user)
+		ctx := context.WithValue(r.Context(), CONTEXT_USER_OBJECT_KEY, keyEntry)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

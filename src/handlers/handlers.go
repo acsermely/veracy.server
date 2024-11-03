@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -14,24 +17,114 @@ import (
 	"github.com/acsermely/veracy.server/src/db"
 	"github.com/acsermely/veracy.server/src/distributed"
 	"github.com/golang-jwt/jwt/v4"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
-type ProtectedResponse struct {
-	User string `json:"user"`
-	Hash string `json:"hash"`
+func Register(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+	w.Header().Set("Access-Control-Allow-Credentials", "false")
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var user UserKeyBody
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	rsaPublicKey, err := parsePublicKeyString(user.Key)
+	if err != nil {
+		http.Error(w, "Cannot parse Key", http.StatusBadRequest)
+		return
+	}
+
+	_, err = db.GetUserKey(user.WalletID)
+	if err == nil {
+		http.Error(w, "Wallet already registered", http.StatusConflict)
+		return
+	}
+
+	challange, err := db.InsertUserKey(user.WalletID, user.Key)
+	if err != nil {
+		http.Error(w, "Couldn't register user", http.StatusInternalServerError)
+		return
+	}
+
+	encryptedText, err := encryptWithPublicKey(rsaPublicKey, challange)
+	if err != nil {
+		http.Error(w, "Failed to create Challange", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(encryptedText)
 }
 
-type LoginKeyBody struct {
-	WalletID string `json:"wallet"`
-	Chal     string `json:"challange"`
+func encryptWithPublicKey(rsaPublicKey *rsa.PublicKey, plaintext string) ([]byte, error) {
+	rng := rand.Reader
+	ciphertext, err := rsa.EncryptOAEP(sha256.New(), rng, rsaPublicKey, []byte(plaintext), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt data: %w", err)
+	}
+
+	return ciphertext, nil
 }
 
-const (
-	JWT_COOKIE_EXPIRATION = 24 * time.Hour
-)
+func parsePublicKeyString(key string) (*rsa.PublicKey, error) {
+	publicJWK, err := jwk.ParseKey([]byte(key))
+	if err != nil {
+		return nil, err
+	}
 
-func LoginHandler(w http.ResponseWriter, r *http.Request) {
+	var rsaPublicKey rsa.PublicKey
+	if err := publicJWK.Raw(&rsaPublicKey); err != nil {
+		return nil, err
+	}
+	return &rsaPublicKey, nil
+}
+
+func GetLoginChal(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+	walletId := r.URL.Query().Get("walletId")
+	if walletId == "" {
+		http.Error(w, "Missing Wallet ID", http.StatusBadRequest)
+		return
+	}
+
+	user, err := db.GetUserKey(walletId)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	rsaPublicKey, err := parsePublicKeyString(user.Key)
+	if err != nil {
+		http.Error(w, "Cannot parse Key", http.StatusBadRequest)
+		return
+	}
+
+	challange, err := db.SetNewChal(walletId)
+	if err != nil {
+		http.Error(w, "Couldn't generate Challange", http.StatusInternalServerError)
+		return
+	}
+
+	encryptedText, err := encryptWithPublicKey(rsaPublicKey, challange)
+	if err != nil {
+		http.Error(w, "Failed to create Challange", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(encryptedText)
+}
+
+func LoginWhitChal(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 
@@ -42,26 +135,26 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var creds db.User
-	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+	var loginCreds LoginKeyBody
+	if err := json.NewDecoder(r.Body).Decode(&loginCreds); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 
-	storedUser, err := db.GetUser(creds.Username)
+	storedKey, err := db.GetUserKey(loginCreds.WalletID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(storedUser.Password), []byte(creds.Password)); err != nil {
-		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+	if storedKey.Chal == "" || loginCreds.Chal != storedKey.Chal {
+		http.Error(w, "Invalid Challange", http.StatusUnauthorized)
 		return
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"authorized": true,
-		"user":       creds.Username,
+		"user":       loginCreds.WalletID,
 		"exp":        time.Now().Add(JWT_COOKIE_EXPIRATION).Unix(),
 	})
 
@@ -71,6 +164,8 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error generating token", http.StatusInternalServerError)
 		return
 	}
+
+	_ = db.DeleteChal(loginCreds.WalletID)
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "token",
@@ -82,98 +177,10 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func ProtectedHandler(w http.ResponseWriter, r *http.Request) {
-	storedUser := r.Context().Value(CONTEXT_USER_OBJECT_KEY).(db.User)
-	response := ProtectedResponse{
-		User: storedUser.Username,
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
-
-func Register(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
-	w.Header().Set("Access-Control-Allow-Credentials", "false")
-
-	if r.Method != http.MethodPost {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var user db.User
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		return
-	}
-
-	_, err := db.GetUser(user.Username)
-	if err == nil {
-		http.Error(w, "User already exists", http.StatusConflict)
-		return
-	}
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-	if err != nil {
-		http.Error(w, "Error hashing password", http.StatusInternalServerError)
-		return
-	}
-
-	insertUserSQL := `INSERT INTO users (username, password) VALUES (?, ?)`
-
-	stmt, err := db.Database.Prepare(insertUserSQL)
-	if err != nil {
-		http.Error(w, "Database error", http.StatusInternalServerError)
-		return
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(user.Username, hashedPassword)
-	if err != nil {
-		http.Error(w, "Database error", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "User registered successfully")
-}
-
-func LoginCheck(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-	secret := []byte(os.Getenv("SECRET"))
-	cookie, err := r.Cookie("token")
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Missing Cookie"))
-		return
-	}
-	tokenString := cookie.Value
-
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return secret, nil
-	})
-
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Unauthorized"))
-		return
-	}
-	var userName string
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		userName = claims["user"].(string)
-	} else {
-		fmt.Println("invalid token")
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Unauthorized"))
-		return
-	}
-
+func LoginCheckKey(w http.ResponseWriter, r *http.Request) {
+	storedUser := r.Context().Value(CONTEXT_USER_OBJECT_KEY).(db.UserKey)
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "%v", userName)
+	w.Write([]byte(storedUser.WalletID))
 }
 
 func Upload(w http.ResponseWriter, r *http.Request) {
@@ -205,6 +212,7 @@ func Upload(w http.ResponseWriter, r *http.Request) {
 }
 
 func Image(w http.ResponseWriter, r *http.Request) {
+	storedUser := r.Context().Value(CONTEXT_USER_OBJECT_KEY).(db.UserKey)
 	fullId := r.URL.Query().Get("id")
 	if fullId == "" {
 		http.Error(w, "Missing image ID", http.StatusBadRequest)
@@ -215,14 +223,20 @@ func Image(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(fullId, ":")
 	wallet, post, idStr := parts[0], parts[1], parts[2]
 
-	if tx != "" {
-		paid, err := arweave.CheckPayment(wallet, tx)
+	isPrivate, err := arweave.IsDataPrivate(fullId, tx)
+	if err != nil {
+		fmt.Println(err)
+		http.Error(w, "Data check failed", http.StatusBadRequest)
+		return
+	}
+	if isPrivate && storedUser.WalletID != wallet {
+		paid, err := arweave.CheckPayment(storedUser.WalletID, tx)
 		if err != nil {
 			http.Error(w, "Failed to check payment", http.StatusUnauthorized)
 			return
 		}
 		if !paid {
-			http.Error(w, "Couldn't find payment", http.StatusUnauthorized)
+			http.Error(w, "Couldn't find payment", http.StatusPaymentRequired)
 			return
 		}
 	}
@@ -237,14 +251,12 @@ func Image(w http.ResponseWriter, r *http.Request) {
 	err = db.Database.QueryRow("SELECT data FROM images WHERE id = ? AND post = ? AND wallet = ?", id, post, wallet).Scan(&imageData)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Print("Distributed: ")
 			imageData, err = distributed.NeedById(fullId)
 			if err != nil {
 				http.Error(w, "Image not found", http.StatusNotFound)
 				fmt.Println(err)
 				return
 			}
-			fmt.Println("OK")
 		} else {
 			http.Error(w, "Failed to fetch image", http.StatusInternalServerError)
 			return

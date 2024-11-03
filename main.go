@@ -5,17 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/acsermely/veracy.server/src/config"
 	"github.com/acsermely/veracy.server/src/db"
 	"github.com/acsermely/veracy.server/src/distributed"
 	"github.com/acsermely/veracy.server/src/handlers"
 )
-
-func init() {
-	os.Setenv("SECRET", "hashsecret")
-}
 
 func main() {
 	conf := config.Parse()
@@ -32,8 +27,8 @@ func main() {
 	initDistributedConnection(&conf)
 
 	log.Printf("Server started at %v\n", port)
-	err = server.ListenAndServeTLS("", "")
-	// err = server.ListenAndServe()
+	// err = server.ListenAndServeTLS("", "")
+	err = server.ListenAndServe()
 	if err != nil {
 		log.Fatalf("failed to start server: %s", err)
 	}
@@ -44,9 +39,9 @@ func initServer(port string) *http.Server {
 
 	mux.HandleFunc("/img", handlers.WalletMiddleware(handlers.Image))
 	mux.HandleFunc("/upload", handlers.WalletMiddleware(handlers.Upload))
-	mux.HandleFunc("/loginCheck", handlers.WalletMiddleware(handlers.LoginCheckKeyHandler))
+	mux.HandleFunc("/loginCheck", handlers.WalletMiddleware(handlers.LoginCheckKey))
 
-	mux.HandleFunc("/registerKey", handlers.RegisterKey)
+	mux.HandleFunc("/registerKey", handlers.Register)
 	mux.HandleFunc("/challange", handlers.GetLoginChal)
 	mux.HandleFunc("/loginChal", handlers.LoginWhitChal)
 
