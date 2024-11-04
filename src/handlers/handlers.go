@@ -254,7 +254,6 @@ func Image(w http.ResponseWriter, r *http.Request) {
 			imageData, err = distributed.NeedById(fullId)
 			if err != nil {
 				http.Error(w, "Image not found", http.StatusNotFound)
-				fmt.Println(err)
 				return
 			}
 		} else {

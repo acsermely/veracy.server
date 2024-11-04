@@ -114,9 +114,7 @@ func listenToNeedTopic(sub *pubsub.Subscription) {
 		if from == Node.ID() {
 			continue
 		}
-		fmt.Println("Distributed: Need Id")
 		id := string(m.Message.Data)
-		// check id in db
 		if len(id) < 1 {
 			continue
 		}
