@@ -37,7 +37,7 @@ func Connect(conf *config.AppConfig) *ContentNode {
 	arriveChans = make(map[string]chan []byte)
 	arriveMutex.Unlock()
 
-	addrs := []string{"/ip4/0.0.0.0/udp/8078/quic-v1", "/ip4/0.0.0.0/tcp/8079"}
+	addrs := []string{"/ip4/0.0.0.0/udp/" + strconv.Itoa(conf.NodeUDP) + "/quic-v1", "/ip4/0.0.0.0/tcp/" + strconv.Itoa(conf.NodeTCP)}
 	Node = NewNode(ctx, addrs, conf.Bootstrap)
 	Node.Join(NEED_BROADCAST_TOPIC)
 	sub, err := Node.Topics[NEED_BROADCAST_TOPIC].Subscribe()
