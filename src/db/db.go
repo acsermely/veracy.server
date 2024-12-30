@@ -11,12 +11,6 @@ import (
 )
 
 const (
-	createUserTableSQL = `CREATE TABLE IF NOT EXISTS users (
-        "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-        "username" TEXT,
-        "password" TEXT
-    );`
-
 	createImagesTableSQL = `CREATE TABLE IF NOT EXISTS images (
 	id INTEGER PRIMARY KEY,
 	wallet TEXT,
@@ -30,14 +24,7 @@ const (
         "key" TEXT,
 		"chal" TEXT
     );`
-
 )
-
-type User struct {
-	ID       int    `json:"id"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
 
 type UserKey struct {
 	ID       int    `json:"id"`
@@ -55,11 +42,6 @@ func Create() (*sql.DB, error) {
 	}
 	Database = database
 
-	_, err = database.Exec(createUserTableSQL)
-	if err != nil {
-		return nil, err
-	}
-
 	_, err = database.Exec(createImagesTableSQL)
 	if err != nil {
 		return nil, err
@@ -71,22 +53,6 @@ func Create() (*sql.DB, error) {
 	}
 
 	return database, nil
-}
-
-func GetUser(name string) (User, error) {
-	selectUserQuery := "SELECT id, username, password FROM users WHERE username = ?"
-
-	var storedUser User
-	row := Database.QueryRow(selectUserQuery, name)
-	err := row.Scan(&storedUser.ID, &storedUser.Username, &storedUser.Password)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return User{}, fmt.Errorf("invalid username or password")
-		}
-		return User{}, fmt.Errorf("database error")
-	}
-
-	return storedUser, nil
 }
 
 func GetUserKey(wallet string) (UserKey, error) {
@@ -115,7 +81,7 @@ func InsertUserKey(wallet string, key string) (string, error) {
 	}
 	defer stmt.Close()
 
-	newChal := getNewChal()
+	newChal := generateChal()
 
 	_, err = stmt.Exec(wallet, key, newChal)
 	if err != nil {
@@ -125,14 +91,14 @@ func InsertUserKey(wallet string, key string) (string, error) {
 	return newChal, nil
 }
 
-func getNewChal() string {
+func generateChal() string {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	randomNumber := r.Intn(1000000)
 	return strconv.Itoa(randomNumber)
 }
 
 func SetNewChal(wallet string) (string, error) {
-	newChal := getNewChal()
+	newChal := generateChal()
 
 	query := `UPDATE keys SET chal = ? WHERE wallet = ?`
 	_, err := Database.Exec(query, newChal, wallet)

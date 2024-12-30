@@ -26,8 +26,8 @@ var arriveChans map[string]chan []byte // This doesnt scale if users need the sa
 var arriveMutex sync.Mutex
 
 const (
-	NEED_BROADCAST_TOPIC                = "need-broadcast-topic"
-	IMAGE_TRANSFER_PROTOCOL protocol.ID = "/permit-image-transfer/0.0.1"
+	NEED_CONTENT_BROADCAST_TOPIC             = "need-content-broadcast-topic"
+	IMAGE_TRANSFER_PROTOCOL      protocol.ID = "/permit-image-transfer/0.0.1"
 )
 
 func Connect(conf *config.AppConfig) *ContentNode {
@@ -39,13 +39,13 @@ func Connect(conf *config.AppConfig) *ContentNode {
 
 	addrs := []string{"/ip4/0.0.0.0/udp/" + strconv.Itoa(conf.NodeUDP) + "/quic-v1", "/ip4/0.0.0.0/tcp/" + strconv.Itoa(conf.NodeTCP)}
 	Node = NewNode(ctx, addrs, conf.Bootstrap)
-	Node.Join(NEED_BROADCAST_TOPIC)
-	sub, err := Node.Topics[NEED_BROADCAST_TOPIC].Subscribe()
+	Node.Join(NEED_CONTENT_BROADCAST_TOPIC)
+	sub, err := Node.Topics[NEED_CONTENT_BROADCAST_TOPIC].Subscribe()
 	if err != nil {
 		println("Subscription error for NEED_BROADCAST", err)
 	}
 	Node.h.SetStreamHandler(IMAGE_TRANSFER_PROTOCOL, handleStream)
-	go listenToNeedTopic(sub)
+	go listenToNeedContentTopic(sub)
 
 	return Node
 }
@@ -57,7 +57,7 @@ func NeedById(id string) ([]byte, error) {
 	arriveMutex.Lock()
 	arriveChans[id] = make(chan []byte)
 	arriveMutex.Unlock()
-	Node.Topics[NEED_BROADCAST_TOPIC].Publish(ctx, []byte(id))
+	Node.Topics[NEED_CONTENT_BROADCAST_TOPIC].Publish(ctx, []byte(id))
 
 	select {
 	case data := <-arriveChans[id]:
@@ -104,7 +104,7 @@ func handleStream(s network.Stream) {
 	close(c)
 }
 
-func listenToNeedTopic(sub *pubsub.Subscription) {
+func listenToNeedContentTopic(sub *pubsub.Subscription) {
 	for {
 		m, err := sub.Next(ctx)
 		if err != nil {

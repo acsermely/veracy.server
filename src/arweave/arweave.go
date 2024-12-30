@@ -20,6 +20,30 @@ func Query(query string) ([]byte, error) {
 		fmt.Println("Error marshaling JSON:", err)
 		return nil, err
 	}
+	resp, err := http.Post(common.BUNDLER_URL+"/graphql", common.TX_APP_CONTENT_TYPE, bytes.NewBuffer(jsonValue))
+	if err != nil {
+		fmt.Println("Error sending query:", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("Error reading response body:", err)
+		return nil, err
+	}
+
+	return body, nil
+}
+
+func QueryArweave(query string) ([]byte, error) {
+	jsonData := map[string]string{
+		"query": query,
+	}
+	jsonValue, err := json.Marshal(jsonData)
+	if err != nil {
+		fmt.Println("Error marshaling JSON:", err)
+		return nil, err
+	}
 	resp, err := http.Post(common.ARWEAVE_URL+"/graphql", common.TX_APP_CONTENT_TYPE, bytes.NewBuffer(jsonValue))
 	if err != nil {
 		fmt.Println("Error sending query:", err)
@@ -55,7 +79,7 @@ func CheckPayment(sender string, tx string) (bool, error) {
 		}
 	}`, sender, common.TX_APP_NAME, common.TX_APP_VERSION, common.TX_TYPE_PAYMENT, tx)
 
-	jsonData, err := Query(query)
+	jsonData, err := QueryArweave(query)
 	if err != nil {
 		fmt.Println("Query error:", err)
 		return false, err
@@ -69,6 +93,7 @@ func CheckPayment(sender string, tx string) (bool, error) {
 	}
 
 	if len(result.Data.Transactions.Edges) > 0 {
+		fmt.Println(result.Data.Transactions.Edges)
 		return true, nil
 	}
 	return false, nil
@@ -89,7 +114,7 @@ func IsDataPrivate(fullId string, tx string) (bool, error) {
 }
 
 func getTxById(txId string) (*common.Post, error) {
-	response, err := http.Get(fmt.Sprintf("%s/%s", common.ARWEAVE_URL, txId))
+	response, err := http.Get(fmt.Sprintf("%s/%s", common.BUNDLER_URL, txId))
 	if err != nil {
 		return nil, err
 	}

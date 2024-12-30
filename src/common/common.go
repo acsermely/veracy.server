@@ -1,8 +1,9 @@
 package common
 
 const (
-	// ARWEAVE_URL             = "https://arweave.net"
-	ARWEAVE_URL             = "https://node2.irys.xyz"
+	ARWEAVE_URL             = "https://arweave.net"
+	BUNDLER_URL             = "https://node2.irys.xyz"
+	// ARWEAVE_URL             = "http://localhost:1984"
 	TX_APP_CONTENT_TYPE     = "application/json"
 	TX_APP_VERSION          = "0.0.4"
 	TX_APP_NAME             = "VeracyApp"
