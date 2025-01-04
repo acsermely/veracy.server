@@ -1,9 +1,19 @@
 package common
 
+// GATEWAYS
 const (
-	ARWEAVE_URL             = "https://arweave.net"
-	BUNDLER_URL             = "https://node2.irys.xyz"
-	// ARWEAVE_URL             = "http://localhost:1984"
+	ARWEAVE_URL = "https://arweave.net"
+	BUNDLER_URL = "https://node2.irys.xyz"
+)
+
+// TEST GATEWAYS
+// const (
+// 	BUNDLER_URL = "https://devnet.irys.xyz"
+// 	ARWEAVE_URL = "http://localhost:1984"
+// )
+
+// TX VALUES
+const (
 	TX_APP_CONTENT_TYPE     = "application/json"
 	TX_APP_VERSION          = "0.0.4"
 	TX_APP_NAME             = "VeracyApp"

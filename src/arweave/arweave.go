@@ -93,7 +93,6 @@ func CheckPayment(sender string, tx string) (bool, error) {
 	}
 
 	if len(result.Data.Transactions.Edges) > 0 {
-		fmt.Println(result.Data.Transactions.Edges)
 		return true, nil
 	}
 	return false, nil
