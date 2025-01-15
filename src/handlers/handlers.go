@@ -223,6 +223,23 @@ func Image(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(fullId, ":")
 	wallet, post, idStr := parts[0], parts[1], parts[2]
 
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid image ID", http.StatusBadRequest)
+		return
+	}
+
+	var imageActive bool
+	err = db.Database.QueryRow("SELECT active FROM images WHERE id = ? AND post = ? AND wallet = ?", id, post, wallet).Scan(&imageActive)
+	if err != nil {
+		http.Error(w, "Failed to fetch image", http.StatusInternalServerError)
+		return
+	}
+	if !imageActive {
+		http.Error(w, "Disabled image", http.StatusForbidden)
+		return
+	}
+
 	isPrivate, err := arweave.IsDataPrivate(fullId, tx)
 	if err != nil {
 		fmt.Println(err)
@@ -239,12 +256,6 @@ func Image(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Couldn't find payment", http.StatusPaymentRequired)
 			return
 		}
-	}
-
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		http.Error(w, "Invalid image ID", http.StatusBadRequest)
-		return
 	}
 
 	var imageData []byte

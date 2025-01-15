@@ -45,6 +45,12 @@ func initServer(port string) *http.Server {
 	mux.HandleFunc("/challange", handlers.GetLoginChal)
 	mux.HandleFunc("/loginChal", handlers.LoginWhitChal)
 
+	mux.HandleFunc("/adminAllImages", handlers.AdminMiddleware(handlers.GetAllImages))
+	mux.HandleFunc("/adminSetImageActivity", handlers.AdminMiddleware(handlers.SetImageActivity))
+
+	mux.HandleFunc("/adminChal", handlers.GetAdminChal)
+	mux.HandleFunc("/adminLogin", handlers.LoginAdminChal)
+
 	cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
 	if err != nil {
 		log.Fatalf("failed to load key pair: %s", err)

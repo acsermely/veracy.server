@@ -12,18 +12,37 @@ import (
 
 const (
 	createImagesTableSQL = `CREATE TABLE IF NOT EXISTS images (
-	id INTEGER PRIMARY KEY,
-	wallet TEXT,
-	post TEXT,
-	data BLOB
+		id INTEGER PRIMARY KEY,
+		wallet TEXT,
+		post TEXT,
+		data BLOB,
+		active BOOLEAN
 	);`
 
 	createKeysTableSQL = `CREATE TABLE IF NOT EXISTS keys (
-        "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-        "wallet" TEXT,
-        "key" TEXT,
-		"chal" TEXT
+        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+        wallet TEXT,
+        key TEXT,
+		chal TEXT
     );`
+
+	createAdminTableSQL = `CREATE TABLE IF NOT EXISTS admin (
+        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+        role TEXT,
+		chal TEXT
+    );`
+
+	checkImagesColumnsSQL = `PRAGMA table_info(images);`
+
+	initAdminTableSQL = `INSERT OR REPLACE INTO admin (
+		id,
+		role,
+		chal
+	) VALUES (
+	 	(SELECT id FROM admin WHERE role = 'admin'),
+		'admin',
+		NULL
+	);`
 )
 
 type UserKey struct {
@@ -34,6 +53,39 @@ type UserKey struct {
 }
 
 var Database *sql.DB
+
+func upgrade(database *sql.DB) (*sql.DB, error) {
+	query := checkImagesColumnsSQL
+	rows, err := database.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	columnExists := false
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt_value interface{}
+		err = rows.Scan(&cid, &name, &ctype, &notnull, &dflt_value, &pk)
+		if err != nil {
+			return nil, err
+		}
+		if name == "active" {
+			columnExists = true
+			break
+		}
+	}
+	if !columnExists {
+		alterQuery := `ALTER TABLE images ADD COLUMN active BOOLEAN DEFAULT TRUE;`
+		_, err = database.Exec(alterQuery)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return database, nil
+}
 
 func Create() (*sql.DB, error) {
 	database, err := sql.Open("sqlite3", "./users.db")
@@ -48,6 +100,21 @@ func Create() (*sql.DB, error) {
 	}
 
 	_, err = database.Exec(createKeysTableSQL)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = database.Exec(createAdminTableSQL)
+	if err != nil {
+		return nil, err
+	}
+
+	database, err = upgrade(database)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = database.Exec(initAdminTableSQL)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +173,43 @@ func SetNewChal(wallet string) (string, error) {
 		return "", err
 	}
 	return newChal, nil
+}
+
+func SetAdminChal() (string, error) {
+	newChal := generateChal()
+
+	query := `UPDATE admin SET chal = ? WHERE role = "admin"`
+	_, err := Database.Exec(query, newChal)
+	if err != nil {
+		return "", err
+	}
+	return newChal, nil
+}
+
+func GetAdminChal() (string, error) {
+	selectUserQuery := `SELECT chal FROM admin WHERE role = "admin"`
+
+	var chal string
+	row := Database.QueryRow(selectUserQuery)
+	err := row.Scan(&chal)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", fmt.Errorf("invalid Wallet ID")
+		}
+		fmt.Println(err)
+		return "", fmt.Errorf("database error")
+	}
+
+	return chal, nil
+}
+
+func ResetAdminChal() error {
+	query := `UPDATE admin SET chal = "" WHERE role="admin"`
+	_, err := Database.Exec(query)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func DeleteChal(wallet string) error {
