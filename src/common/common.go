@@ -19,10 +19,13 @@ const (
 	TX_APP_NAME             = "VeracyApp"
 	TX_TYPE_POST            = "post"
 	TX_TYPE_PAYMENT         = "payment"
+	TX_TYPE_SET_PRICE       = "set-price"
 	TX_POST_PRIVACY_PRIVATE = "PRIVATE"
 	TX_POST_PRIVACY_PUBLIC  = "PUBLIC"
 	TX_POST_TYPE_IMG        = "IMG"
 	TX_POST_TYPE_TEXT       = "TEXT"
+	ACTIVATION_ADDRESS      = "8vAopD3Fv7QnEqG00-E6aSyLaL9WKZpHmeTPWyNxs9c"
+	// ACTIVATION_ADDRESS      = "0S00yFATR2ozqXiq0XT6EjnB0EBc5xHW35HPZpSK1J8" // Only for Testing
 )
 
 type Owner struct {
