@@ -15,7 +15,7 @@ const (
 // TX VALUES
 const (
 	TX_APP_CONTENT_TYPE     = "application/json"
-	TX_APP_VERSION          = "0.0.4"
+	TX_APP_VERSION          = "0.0.5"
 	TX_APP_NAME             = "VeracyApp"
 	TX_TYPE_POST            = "post"
 	TX_TYPE_PAYMENT         = "payment"
