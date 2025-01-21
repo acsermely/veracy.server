@@ -96,22 +96,39 @@ func GetLoginChal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var key string
+	var challange string
 	user, err := db.GetUserKey(walletId)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
+		keyData, err := distributed.GroupUserByAddress(walletId)
+		if err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		key = string(keyData)
+		challange, err = db.InsertUserKey(walletId, key)
+		if err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
 	}
 
-	rsaPublicKey, err := parsePublicKeyString(user.Key)
+	if key == "" {
+		key = user.Key
+	}
+
+	rsaPublicKey, err := parsePublicKeyString(key)
 	if err != nil {
 		http.Error(w, "Cannot parse Key", http.StatusBadRequest)
 		return
 	}
 
-	challange, err := db.SetNewChal(walletId)
-	if err != nil {
-		http.Error(w, "Couldn't generate Challange", http.StatusInternalServerError)
-		return
+	if challange == "" {
+		challange, err = db.SetNewChal(walletId)
+		if err != nil {
+			http.Error(w, "Couldn't generate Challange", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	encryptedText, err := encryptWithPublicKey(rsaPublicKey, challange)
@@ -229,17 +246,6 @@ func Image(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var imageActive bool
-	err = db.Database.QueryRow("SELECT active FROM images WHERE id = ? AND post = ? AND wallet = ?", id, post, wallet).Scan(&imageActive)
-	if err != nil {
-		http.Error(w, "Failed to fetch image", http.StatusInternalServerError)
-		return
-	}
-	if !imageActive {
-		http.Error(w, "Disabled image", http.StatusForbidden)
-		return
-	}
-
 	isPrivate, err := arweave.IsDataPrivate(fullId, tx)
 	if err != nil {
 		fmt.Println(err)
@@ -249,7 +255,7 @@ func Image(w http.ResponseWriter, r *http.Request) {
 	if isPrivate && storedUser.WalletID != wallet {
 		paid, err := arweave.CheckPayment(storedUser.WalletID, tx)
 		if err != nil {
-			http.Error(w, "Failed to check payment", http.StatusUnauthorized)
+			http.Error(w, "Failed to check payment", http.StatusServiceUnavailable)
 			return
 		}
 		if !paid {
@@ -259,7 +265,8 @@ func Image(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var imageData []byte
-	err = db.Database.QueryRow("SELECT data FROM images WHERE id = ? AND post = ? AND wallet = ?", id, post, wallet).Scan(&imageData)
+	var imageActive bool
+	err = db.Database.QueryRow("SELECT data, active FROM images WHERE id = ? AND post = ? AND wallet = ?", id, post, wallet).Scan(&imageData, &imageActive)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			imageData, err = distributed.NeedById(fullId)
@@ -271,6 +278,9 @@ func Image(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to fetch image", http.StatusInternalServerError)
 			return
 		}
+	} else if !imageActive {
+		http.Error(w, "Disabled image", http.StatusForbidden)
+		return
 	}
 
 	w.Write(imageData)

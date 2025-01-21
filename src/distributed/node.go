@@ -31,9 +31,8 @@ func NewNode(ctx context.Context, addr []string, bootstrap string) *ContentNode 
 	bootstrapPeer := peer.AddrInfo{}
 	if bootstrap != "" {
 		bootstrapPeer, _ = convertUrlToAddrInfo(&bootstrap)
-	} else {
-		printNewPeerInfo(h)
 	}
+	printNewPeerInfo(h)
 
 	kademliaDHT, err := dht.New(ctx, h, dht.BootstrapPeers(bootstrapPeer))
 	if err != nil {

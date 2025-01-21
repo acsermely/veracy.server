@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/acsermely/veracy.server/src/common"
 	"github.com/acsermely/veracy.server/src/config"
 	"github.com/acsermely/veracy.server/src/db"
 	"github.com/acsermely/veracy.server/src/proto/github.com/acsermely/veracy.server/distributed/pb"
@@ -19,33 +20,66 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+type ChannelMap map[string][]chan []byte
+
 var Node *ContentNode
-var IsUp = false
 var ctx context.Context
-var arriveChans map[string]chan []byte // This doesnt scale if users need the same ID
+
+var arriveChans ChannelMap
 var arriveMutex sync.Mutex
+
+// Dynamic Topics
+var GroupBroadcastTopic string
 
 const (
 	NEED_CONTENT_BROADCAST_TOPIC             = "need-content-broadcast-topic"
 	IMAGE_TRANSFER_PROTOCOL      protocol.ID = "/permit-image-transfer/0.0.1"
+	KEY_TRANSFER_PROTOCOL        protocol.ID = "/veracy-key-transfer/0.0.1"
+	NETWORK_TIMEOUT                          = 10 * time.Second
 )
 
 func Connect(conf *config.AppConfig) *ContentNode {
 	ctx = context.Background()
 
-	arriveMutex.Lock()
-	arriveChans = make(map[string]chan []byte)
-	arriveMutex.Unlock()
+	arriveChans = make(ChannelMap)
 
-	addrs := []string{"/ip4/0.0.0.0/udp/" + strconv.Itoa(conf.NodeUDP) + "/quic-v1", "/ip4/0.0.0.0/tcp/" + strconv.Itoa(conf.NodeTCP)}
+	addrs := []string{
+		"/ip4/0.0.0.0/tcp/" + strconv.Itoa(conf.NodeTCP),
+		"/ip4/0.0.0.0/udp/" + strconv.Itoa(conf.NodeUDP) + "/quic-v1",
+	}
+
 	Node = NewNode(ctx, addrs, conf.Bootstrap)
-	Node.Join(NEED_CONTENT_BROADCAST_TOPIC)
-	sub, err := Node.Topics[NEED_CONTENT_BROADCAST_TOPIC].Subscribe()
+
+	// Need Image protocol
+	needTopic, err := Node.Join(NEED_CONTENT_BROADCAST_TOPIC)
+	if err != nil {
+		println("Join error for NEED_BROADCAST", err)
+	}
+	needSub, err := needTopic.Subscribe()
 	if err != nil {
 		println("Subscription error for NEED_BROADCAST", err)
 	}
-	Node.h.SetStreamHandler(IMAGE_TRANSFER_PROTOCOL, handleStream)
-	go listenToNeedContentTopic(sub)
+	Node.h.SetStreamHandler(IMAGE_TRANSFER_PROTOCOL, imageTransferHandler)
+	go listenToNeedContentTopic(needSub)
+
+	// Group protocol
+	if conf.Group == "" {
+		GroupBroadcastTopic = common.GenerateRandomHash()
+		fmt.Printf("\nGroup Code: %v\n\n", GroupBroadcastTopic)
+	} else {
+		GroupBroadcastTopic = conf.Group
+	}
+
+	groupTopic, err := Node.Join(GroupBroadcastTopic)
+	if err != nil {
+		println("Join error for NEED_BROADCAST", err)
+	}
+	groupSub, err := groupTopic.Subscribe()
+	if err != nil {
+		println("Subscription error for NEED_BROADCAST", err)
+	}
+	Node.h.SetStreamHandler(KEY_TRANSFER_PROTOCOL, groupKeyTransferHandler)
+	go listenToGroupKeyTopic(groupSub)
 
 	return Node
 }
@@ -54,18 +88,23 @@ func NeedById(id string) ([]byte, error) {
 	if len(id) == 0 {
 		return nil, fmt.Errorf("invalid id")
 	}
+
 	arriveMutex.Lock()
-	arriveChans[id] = make(chan []byte)
+	if _, exists := arriveChans[id]; !exists {
+		arriveChans[id] = []chan []byte{}
+	}
+	newChannel := make(chan []byte)
+	arriveChans[id] = append(arriveChans[id], newChannel)
 	arriveMutex.Unlock()
 	Node.Topics[NEED_CONTENT_BROADCAST_TOPIC].Publish(ctx, []byte(id))
 
 	select {
-	case data := <-arriveChans[id]:
+	case data := <-newChannel:
 		arriveMutex.Lock()
 		delete(arriveChans, id)
 		arriveMutex.Unlock()
 		return data, nil
-	case <-time.After(5 * time.Second):
+	case <-time.After(NETWORK_TIMEOUT):
 		arriveMutex.Lock()
 		delete(arriveChans, id)
 		arriveMutex.Unlock()
@@ -73,7 +112,35 @@ func NeedById(id string) ([]byte, error) {
 	}
 }
 
-func handleStream(s network.Stream) {
+func GroupUserByAddress(address string) ([]byte, error) {
+	if len(address) == 0 {
+		return nil, fmt.Errorf("invalid id")
+	}
+
+	arriveMutex.Lock()
+	if _, exists := arriveChans[address]; !exists {
+		arriveChans[address] = []chan []byte{}
+	}
+	newChannel := make(chan []byte)
+	arriveChans[address] = append(arriveChans[address], newChannel)
+	arriveMutex.Unlock()
+	Node.Topics[GroupBroadcastTopic].Publish(ctx, []byte(address))
+
+	select {
+	case data := <-newChannel:
+		arriveMutex.Lock()
+		delete(arriveChans, address)
+		arriveMutex.Unlock()
+		return data, nil
+	case <-time.After(NETWORK_TIMEOUT):
+		arriveMutex.Lock()
+		delete(arriveChans, address)
+		arriveMutex.Unlock()
+		return nil, fmt.Errorf("timeout")
+	}
+}
+
+func imageTransferHandler(s network.Stream) {
 	r := bufio.NewReader(s)
 
 	data := []byte{}
@@ -94,21 +161,48 @@ func handleStream(s network.Stream) {
 	if err := proto.Unmarshal(data, transferData); err != nil {
 		fmt.Println("Error while Unmarshal", err)
 	}
+	if chans, exists := arriveChans[transferData.Id]; exists {
+		for _, ch := range chans {
+			ch <- transferData.Data
+			close(ch)
+		}
+	}
+}
 
-	c, ok := arriveChans[transferData.Id]
-	if !ok {
-		fmt.Printf("No chanel for: %v\n", transferData.Id)
+func groupKeyTransferHandler(s network.Stream) {
+	r := bufio.NewReader(s)
+
+	data := []byte{}
+	for {
+		buffer := make([]byte, 20480)
+		n, err := r.Read(buffer)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			fmt.Println("Error reading Data:", err)
+			return
+		}
+		data = append(data, buffer[:n]...)
 	}
 
-	c <- transferData.Data
-	close(c)
+	transferData := &pb.KeyTransferData{}
+	if err := proto.Unmarshal(data, transferData); err != nil {
+		fmt.Println("Error while Unmarshal", err)
+	}
+	if chans, exists := arriveChans[transferData.Id]; exists {
+		for _, ch := range chans {
+			ch <- []byte(transferData.Key)
+			close(ch)
+		}
+	}
 }
 
 func listenToNeedContentTopic(sub *pubsub.Subscription) {
 	for {
 		m, err := sub.Next(ctx)
 		if err != nil {
-			panic(err)
+			continue
 		}
 		from := m.ReceivedFrom.String()
 		if from == Node.ID() {
@@ -149,7 +243,54 @@ func listenToNeedContentTopic(sub *pubsub.Subscription) {
 		w := bufio.NewWriter(s)
 		_, err = w.Write(data)
 		if err != nil {
-			panic(err)
+			continue
+		}
+		w.Flush()
+		s.Close()
+	}
+}
+
+func listenToGroupKeyTopic(sub *pubsub.Subscription) {
+	for {
+		m, err := sub.Next(ctx)
+		if err != nil {
+			continue
+		}
+		from := m.ReceivedFrom.String()
+		if from == Node.ID() {
+			continue
+		}
+		wallet := string(m.Message.Data)
+		if len(wallet) < 1 {
+			continue
+		}
+
+		var userKey string
+		err = db.Database.QueryRow("SELECT key FROM keys WHERE wallet = ?", wallet).Scan(&userKey)
+		if err != nil {
+			continue
+		}
+
+		transferData := &pb.KeyTransferData{
+			Id:  wallet,
+			Key: userKey,
+		}
+
+		data, err := proto.Marshal(transferData)
+		if err != nil {
+			fmt.Println("PB Marshal error")
+			fmt.Println(err)
+			continue
+		}
+
+		s, err := Node.h.NewStream(ctx, m.ReceivedFrom, KEY_TRANSFER_PROTOCOL)
+		if err != nil {
+			continue
+		}
+		w := bufio.NewWriter(s)
+		_, err = w.Write(data)
+		if err != nil {
+			continue
 		}
 		w.Flush()
 		s.Close()

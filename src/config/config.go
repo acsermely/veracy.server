@@ -9,6 +9,7 @@ type AppConfig struct {
 	NodeTCP   int
 	NodeUDP   int
 	Bootstrap string
+	Group     string
 }
 
 func Parse() AppConfig {
@@ -17,6 +18,7 @@ func Parse() AppConfig {
 	flag.IntVar(&conf.NodeTCP, "p-tcp", 8079, "The port of the distributed node TCP interface.")
 	flag.IntVar(&conf.NodeUDP, "p-udp", 8078, "The port of the distributed node UDP interface.")
 	flag.StringVar(&conf.Bootstrap, "b", "", "The Multiaddress of the bootstrap node")
+	flag.StringVar(&conf.Group, "g", "", "The Topic of the Node Group.")
 	flag.Parse()
 	return conf
 }

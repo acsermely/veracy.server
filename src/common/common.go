@@ -1,15 +1,24 @@
 package common
 
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+)
+
 // GATEWAYS
 const (
-	ARWEAVE_URL = "https://arweave.net"
-	BUNDLER_URL = "https://node2.irys.xyz"
+	ARWEAVE_URL        = "https://arweave.net"
+	BUNDLER_URL        = "https://node2.irys.xyz"
+	ACTIVATION_ADDRESS = "8vAopD3Fv7QnEqG00-E6aSyLaL9WKZpHmeTPWyNxs9c"
 )
 
 // TEST GATEWAYS
 // const (
 // 	BUNDLER_URL = "https://devnet.irys.xyz"
 // 	ARWEAVE_URL = "http://localhost:1984"
+// ACTIVATION_ADDRESS = "0S00yFATR2ozqXiq0XT6EjnB0EBc5xHW35HPZpSK1J8" // Only for Testing
 // )
 
 // TX VALUES
@@ -24,8 +33,6 @@ const (
 	TX_POST_PRIVACY_PUBLIC  = "PUBLIC"
 	TX_POST_TYPE_IMG        = "IMG"
 	TX_POST_TYPE_TEXT       = "TEXT"
-	ACTIVATION_ADDRESS      = "8vAopD3Fv7QnEqG00-E6aSyLaL9WKZpHmeTPWyNxs9c"
-	// ACTIVATION_ADDRESS      = "0S00yFATR2ozqXiq0XT6EjnB0EBc5xHW35HPZpSK1J8" // Only for Testing
 )
 
 type Owner struct {
@@ -68,4 +75,22 @@ type PostContent struct {
 	Privacy string  `json:"privacy"`
 	Data    string  `json:"data"`
 	Align   *string `json:"align,omitempty"`
+}
+
+func GenerateRandomHash() string {
+	// Generate a random byte slice
+	randomBytes := make([]byte, 64) // 64 bytes for a larger hash
+	_, err := rand.Read(randomBytes)
+	if err != nil {
+		fmt.Println("Error generating random bytes:", err)
+		return ""
+	}
+
+	// Compute the SHA-256 hash
+	hash := sha256.Sum256(randomBytes)
+
+	// Convert the hash to a hexadecimal string
+	hashString := hex.EncodeToString(hash[:])
+
+	return hashString
 }

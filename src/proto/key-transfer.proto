@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+option go_package = "github.com/acsermely/veracy.server/distributed/pb";
+
+message KeyTransferData {
+    string id = 1;
+    string key = 2;
+}
