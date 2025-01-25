@@ -26,6 +26,15 @@ const (
 		chal TEXT
     );`
 
+	createFeedbackTableSQL = `CREATE TABLE IF NOT EXISTS feedback (
+        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+        type TEXT,
+		wallet TEXT,
+		target TEXT,
+		content TEXT,
+		done BOOLEAN DEFAULT FALSE
+    );`
+
 	createAdminTableSQL = `CREATE TABLE IF NOT EXISTS admin (
         id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
         role TEXT,
@@ -50,6 +59,14 @@ type UserKey struct {
 	WalletID string `json:"wallet"`
 	Key      string `json:"key"`
 	Chal     string `json:"chal"`
+}
+
+type Feedback struct {
+	Type    string
+	Wallet  string
+	Target  string
+	Content string
+	Done    bool
 }
 
 var Database *sql.DB
@@ -105,6 +122,11 @@ func Create() (*sql.DB, error) {
 	}
 
 	_, err = database.Exec(createAdminTableSQL)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = database.Exec(createFeedbackTableSQL)
 	if err != nil {
 		return nil, err
 	}
@@ -219,4 +241,65 @@ func DeleteChal(wallet string) error {
 		return err
 	}
 	return nil
+}
+
+func AddFeedback(feedback Feedback) error {
+	query := `INSERT INTO feedback (type, wallet, target, content, done) VALUES (?, ?, ?, ?, ?)`
+	_, err := Database.Exec(query, feedback.Type, feedback.Wallet, feedback.Target, feedback.Content, feedback.Done)
+	return err
+}
+
+func GetAllFeedback() ([]Feedback, error) {
+	query := `SELECT type, wallet, target, content, done FROM feedback`
+	rows, err := Database.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var feedbacks []Feedback
+	for rows.Next() {
+		var feedback Feedback
+		err := rows.Scan(&feedback.Type, &feedback.Wallet, &feedback.Target, &feedback.Content, &feedback.Done)
+		if err != nil {
+			return nil, err
+		}
+		feedbacks = append(feedbacks, feedback)
+	}
+	return feedbacks, nil
+}
+
+func GetFeedbackByID(id int) (Feedback, error) {
+	query := `SELECT type, wallet, target, content, done FROM feedback WHERE id = ?`
+	row := Database.QueryRow(query, id)
+
+	var feedback Feedback
+	err := row.Scan(&feedback.Type, &feedback.Wallet, &feedback.Target, &feedback.Content, &feedback.Done)
+	return feedback, err
+}
+
+func GetFeedbackByWallet(wallet string) ([]Feedback, error) {
+	query := `SELECT type, wallet, target, content, done FROM feedback WHERE wallet = ?`
+	rows, err := Database.Query(query, wallet)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var feedbacks []Feedback
+	for rows.Next() {
+		var feedback Feedback
+		err := rows.Scan(&feedback.Type, &feedback.Wallet, &feedback.Target, &feedback.Content, &feedback.Done)
+		if err != nil {
+			return nil, err
+		}
+		feedbacks = append(feedbacks, feedback)
+	}
+	return feedbacks, nil
+}
+
+func UpdateFeedbackDone(id int, done bool) error {
+	query := `UPDATE feedback SET done = ? WHERE id = ?`
+	_, err := Database.Exec(query, done, id)
+	return err
 }

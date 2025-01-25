@@ -21,7 +21,7 @@ const (
 )
 
 type ImageData struct {
-	Id     int  `json:"id"`
+	Id     int    `json:"id"`
 	Wallet string `json:"address"`
 	Post   string `json:"postId"`
 	Data   []byte `json:"data"`
@@ -29,8 +29,14 @@ type ImageData struct {
 }
 
 type SetImageActiveBody struct {
-	Id     int  `json:"id"`
+	Id     int    `json:"id"`
 	Wallet string `json:"address"`
 	Post   string `json:"postId"`
 	Active bool   `json:"active"`
+}
+
+type FeedbackBody struct {
+	Type    string `json:"feedbackType"`
+	Target  string `json:"target"`
+	Content string `json:"content"`
 }

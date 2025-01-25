@@ -229,7 +229,9 @@ func Upload(w http.ResponseWriter, r *http.Request) {
 }
 
 func Image(w http.ResponseWriter, r *http.Request) {
-	storedUser := r.Context().Value(CONTEXT_USER_OBJECT_KEY).(db.UserKey)
+	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+
 	fullId := r.URL.Query().Get("id")
 	if fullId == "" {
 		http.Error(w, "Missing image ID", http.StatusBadRequest)
@@ -252,15 +254,51 @@ func Image(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Data check failed", http.StatusBadRequest)
 		return
 	}
-	if isPrivate && storedUser.WalletID != wallet {
-		paid, err := arweave.CheckPayment(storedUser.WalletID, tx)
+	if isPrivate {
+		cookie, err := r.Cookie("token")
 		if err != nil {
-			http.Error(w, "Failed to check payment", http.StatusServiceUnavailable)
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("Missing Cookie"))
 			return
 		}
-		if !paid {
-			http.Error(w, "Couldn't find payment", http.StatusPaymentRequired)
+		secret := []byte(os.Getenv("SECRET"))
+		token, err := jwt.Parse(cookie.Value, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return secret, nil
+		})
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("Unauthorized"))
 			return
+		}
+
+		var userWallet string
+		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+			userWallet = claims["user"].(string)
+		} else {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("Unauthorized"))
+			return
+		}
+
+		storedUser, err := db.GetUserKey(userWallet)
+		if err != nil {
+			http.Error(w, "User not found", http.StatusUnauthorized)
+			return
+		}
+
+		if storedUser.WalletID != wallet {
+			paid, err := arweave.CheckPayment(storedUser.WalletID, tx)
+			if err != nil {
+				http.Error(w, "Failed to check payment", http.StatusServiceUnavailable)
+				return
+			}
+			if !paid {
+				http.Error(w, "Couldn't find payment", http.StatusPaymentRequired)
+				return
+			}
 		}
 	}
 
@@ -284,4 +322,32 @@ func Image(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(imageData)
+}
+
+func AddFeedback(w http.ResponseWriter, r *http.Request) {
+	storedUser := r.Context().Value(CONTEXT_USER_OBJECT_KEY).(db.UserKey)
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var newFeedback FeedbackBody
+	if err := json.NewDecoder(r.Body).Decode(&newFeedback); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	err := db.AddFeedback(db.Feedback{
+		Type:    newFeedback.Type,
+		Wallet:  storedUser.WalletID,
+		Target:  newFeedback.Target,
+		Content: newFeedback.Content,
+		Done:    false,
+	})
+
+	if err != nil {
+		http.Error(w, "Failed to add Feedback", http.StatusInternalServerError)
+		return
+	}
 }

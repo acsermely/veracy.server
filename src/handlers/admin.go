@@ -93,7 +93,6 @@ func LoginAdminChal(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetAllImages(w http.ResponseWriter, r *http.Request) {
-
 	rows, err := db.Database.Query("SELECT id, wallet, post, data, active FROM images")
 	if err != nil {
 		fmt.Println(err)
@@ -145,4 +144,14 @@ func SetImageActivity(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(imageData)
+}
+
+func GetAllFeedback(w http.ResponseWriter, r *http.Request) {
+	feedbacks, err := db.GetAllFeedback()
+	if err != nil {
+		http.Error(w, "Failed get Feedbacks", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(feedbacks)
 }

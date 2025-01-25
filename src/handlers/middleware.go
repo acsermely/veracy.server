@@ -29,7 +29,6 @@ func WalletMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		tokenString := cookie.Value
-
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -46,7 +45,6 @@ func WalletMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 			userWallet = claims["user"].(string)
 		} else {
-			fmt.Println("invalid token")
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte("Unauthorized"))
 			return

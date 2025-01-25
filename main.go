@@ -37,10 +37,11 @@ func main() {
 func initServer(port string) *http.Server {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/img", handlers.WalletMiddleware(handlers.Image))
 	mux.HandleFunc("/upload", handlers.WalletMiddleware(handlers.Upload))
 	mux.HandleFunc("/loginCheck", handlers.WalletMiddleware(handlers.LoginCheckKey))
+	mux.HandleFunc("/feedback", handlers.WalletMiddleware(handlers.AddFeedback))
 
+	mux.HandleFunc("/img", handlers.Image)
 	mux.HandleFunc("/registerKey", handlers.Register)
 	mux.HandleFunc("/challange", handlers.GetLoginChal)
 	mux.HandleFunc("/loginChal", handlers.LoginWhitChal)
