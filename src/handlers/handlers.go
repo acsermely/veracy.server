@@ -22,7 +22,6 @@ import (
 
 func Register(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
-	w.Header().Set("Access-Control-Allow-Credentials", "false")
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
@@ -88,7 +87,6 @@ func parsePublicKeyString(key string) (*rsa.PublicKey, error) {
 
 func GetLoginChal(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 	walletId := r.URL.Query().Get("walletId")
 	if walletId == "" {
@@ -143,7 +141,6 @@ func GetLoginChal(w http.ResponseWriter, r *http.Request) {
 
 func LoginWhitChal(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 	secret := []byte(os.Getenv("SECRET"))
 
@@ -184,14 +181,8 @@ func LoginWhitChal(w http.ResponseWriter, r *http.Request) {
 
 	_ = db.DeleteChal(loginCreds.WalletID)
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     "token",
-		Value:    tokenString,
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
-		Expires:  time.Now().Add(JWT_COOKIE_EXPIRATION).UTC(),
-	})
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(tokenString))
 }
 
 func LoginCheckKey(w http.ResponseWriter, r *http.Request) {
@@ -230,7 +221,11 @@ func Upload(w http.ResponseWriter, r *http.Request) {
 
 func Image(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 
 	fullId := r.URL.Query().Get("id")
 	if fullId == "" {
@@ -255,14 +250,14 @@ func Image(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isPrivate {
-		cookie, err := r.Cookie("token")
-		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("Missing Cookie"))
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, "Authorization header missing", http.StatusUnauthorized)
 			return
 		}
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		secret := []byte(os.Getenv("SECRET"))
-		token, err := jwt.Parse(cookie.Value, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
