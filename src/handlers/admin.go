@@ -13,7 +13,6 @@ import (
 
 func GetAdminChal(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 	adminKeyString := os.Getenv("ADMIN_KEY")
 
@@ -41,7 +40,6 @@ func GetAdminChal(w http.ResponseWriter, r *http.Request) {
 
 func LoginAdminChal(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 	secret := []byte(os.Getenv("SECRET"))
 
@@ -82,14 +80,8 @@ func LoginAdminChal(w http.ResponseWriter, r *http.Request) {
 
 	_ = db.ResetAdminChal()
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     "token",
-		Value:    tokenString,
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
-		Expires:  time.Now().Add(JWT_COOKIE_EXPIRATION).UTC(),
-	})
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(tokenString))
 }
 
 func GetAllImages(w http.ResponseWriter, r *http.Request) {

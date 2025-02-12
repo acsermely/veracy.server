@@ -5,15 +5,24 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/acsermely/veracy.server/src/config"
 	"github.com/acsermely/veracy.server/src/db"
 	"github.com/acsermely/veracy.server/src/distributed"
 	"github.com/acsermely/veracy.server/src/handlers"
+	"github.com/joho/godotenv"
 )
 
 func main() {
 	conf := config.Parse()
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatalf("Error loading .env file: %s", err)
+	}
+
+	fmt.Println(os.Getenv("ADMIN_KEY"))
+	fmt.Println(os.Getenv("SECRET"))
 
 	db, err := db.Create()
 	if err != nil {

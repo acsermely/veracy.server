@@ -35,7 +35,7 @@ const (
 	NEED_CONTENT_BROADCAST_TOPIC             = "need-content-broadcast-topic"
 	IMAGE_TRANSFER_PROTOCOL      protocol.ID = "/permit-image-transfer/0.0.1"
 	KEY_TRANSFER_PROTOCOL        protocol.ID = "/veracy-key-transfer/0.0.1"
-	NETWORK_TIMEOUT                          = 10 * time.Second
+	NETWORK_TIMEOUT                          = 5 * time.Second
 )
 
 func Connect(conf *config.AppConfig) *ContentNode {
@@ -65,10 +65,10 @@ func Connect(conf *config.AppConfig) *ContentNode {
 	// Group protocol
 	if conf.Group == "" {
 		GroupBroadcastTopic = common.GenerateRandomHash()
-		fmt.Printf("\nGroup Code: %v\n\n", GroupBroadcastTopic)
 	} else {
 		GroupBroadcastTopic = conf.Group
 	}
+	fmt.Printf("\nGroup Code: %v\n\n", GroupBroadcastTopic)
 
 	groupTopic, err := Node.Join(GroupBroadcastTopic)
 	if err != nil {
@@ -132,7 +132,7 @@ func GroupUserByAddress(address string) ([]byte, error) {
 		delete(arriveChans, address)
 		arriveMutex.Unlock()
 		return data, nil
-	case <-time.After(NETWORK_TIMEOUT):
+	case <-time.After(NETWORK_TIMEOUT / 2):
 		arriveMutex.Lock()
 		delete(arriveChans, address)
 		arriveMutex.Unlock()
