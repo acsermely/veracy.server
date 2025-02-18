@@ -20,9 +20,6 @@ func main() {
 		log.Fatalf("Error loading .env file: %s", err)
 	}
 
-	// os.Setenv("ADMIN_KEY", `{"kty":"RSA","n":"nLzWkkzEyymQsh1yRNYP3iJm1slMukAK_kUVltiW2WbkJ_1x-SndqLf4jbVDB_QSbIwHOpMf1YkfLUqQw8RoHP-ipdjvE1-7fkpP5ieFN-tQEO04vDc2ym8SID7EOIjbyr7pn-Bkk0Cw9ztBA0EY4xPYeI-6NAvWcrcAMhR9GulVSXPrWGoiRg6d9exGjFAySYHetxRu978zMVTyXmmmLeymD6opi8xGBvoMyVWJzwsyj9nYeB19bXduJPUX2AG6DEXLnQ80Y0UiYTWJ27kwHfEBj4xvcoTOzYmruUT7TObSeqgkaothTa8IBVxejCka4QtUHlnD78PahL6rdSCuG8e_klCHBfpLuJhx0dR6RqktJUMooDbZzCpAetQWjI9LhrApS-G1APF74i6cBDSFbJ2FVoiPz2QalhI-aJvbj4CdPY3odqvsSjp5DnjVbrgQNoopqXouYHaTT19NLXm0XLlNwWNlvIlWBaZfyhi6q7hsOUIFYQHYy0fXbCHFPZLDfDsokIlNUAms5OwG9iyJRFdYM5l_MVwO2kdTpkOoyHLssiWzSOCcm6GJ28FMo_CYIKJhzF8iZffJw40KeUTw3-Egmc23zrZm5fmAH190_hKecplPqeaIuFpTv6xzA3Xgz3ffUb_-rFLYC8JU7Li_uAEhXksWOuboWo0WQ8otyZ0","e":"AQAB","alg":"RSA-OAEP-256","ext":true,"key_ops":["encrypt"]}`)
-	// os.Setenv("SECRET", `secret`)
-
 	db, err := db.Create()
 	if err != nil {
 		log.Fatal("Failed to init DB")
