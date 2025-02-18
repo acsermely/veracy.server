@@ -60,9 +60,11 @@ func QueryArweave(query string) ([]byte, error) {
 	return body, nil
 }
 
-func GetPostPrice(tx string) (int32, error) {
+func GetPostPrice(uploader string, post string) (int64, error) {
 	query := fmt.Sprintf(`{
 		transactions(
+			owners: ["%s"],
+			recipients: ["%s"]
 			tags: [
 				{ name: "App-Name", values: ["%s"]},
 				{ name: "Version", values: ["%s"]},
@@ -80,7 +82,9 @@ func GetPostPrice(tx string) (int32, error) {
 				}
 			}
 		}
-	}`, common.TX_APP_NAME, common.TX_APP_VERSION, common.TX_TYPE_SET_PRICE, tx)
+	}`, uploader, common.ACTIVATION_ADDRESS, common.TX_APP_NAME, common.TX_APP_VERSION, common.TX_TYPE_SET_PRICE, post)
+
+	fmt.Println(query)
 
 	jsonData, err := QueryArweave(query)
 	if err != nil {
@@ -97,20 +101,20 @@ func GetPostPrice(tx string) (int32, error) {
 		return 0, fmt.Errorf("no price set for transaction")
 	}
 
-	// Convert winston string to int32
-	winston, err := strconv.ParseInt(result.Data.Transactions.Edges[0].Node.Quantity.Winston, 10, 32)
+	// Convert winston string to int64
+	winston, err := strconv.ParseInt(result.Data.Transactions.Edges[0].Node.Quantity.Winston, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("error parsing winston amount: %w", err)
 	}
 
-	return int32(winston), nil
+	return winston, nil
 }
 
-func CheckPayment(sender string, tx string) (bool, error) {
-	// Get the required price first
-	requiredPrice, err := GetPostPrice(tx)
+func CheckPayment(sender string, tx string, uploader string, postId string) (bool, error) {
+	// Get the required price first - use wallet (content owner) as sender
+	requiredPrice, err := GetPostPrice(uploader, postId)
 	if err != nil {
-		return false, fmt.Errorf("error getting post price: %w", err)
+		return false, nil
 	}
 
 	query := fmt.Sprintf(`{
@@ -151,12 +155,12 @@ func CheckPayment(sender string, tx string) (bool, error) {
 	}
 
 	// Check if payment amount matches required price
-	paidAmount, err := strconv.ParseInt(result.Data.Transactions.Edges[0].Node.Quantity.Winston, 10, 32)
+	paidAmount, err := strconv.ParseInt(result.Data.Transactions.Edges[0].Node.Quantity.Winston, 10, 64)
 	if err != nil {
 		return false, fmt.Errorf("error parsing payment amount: %w", err)
 	}
 
-	return int32(paidAmount) >= requiredPrice, nil
+	return paidAmount >= requiredPrice, nil
 }
 
 func IsDataPrivate(fullId string, tx string) (bool, error) {
