@@ -84,8 +84,6 @@ func GetPostPrice(uploader string, post string) (int64, error) {
 		}
 	}`, uploader, common.ACTIVATION_ADDRESS, common.TX_APP_NAME, common.TX_APP_VERSION, common.TX_TYPE_SET_PRICE, post)
 
-	fmt.Println(query)
-
 	jsonData, err := QueryArweave(query)
 	if err != nil {
 		return 0, fmt.Errorf("query error: %w", err)
