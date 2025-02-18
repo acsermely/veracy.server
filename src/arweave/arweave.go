@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/acsermely/veracy.server/src/common"
 )
@@ -59,7 +60,59 @@ func QueryArweave(query string) ([]byte, error) {
 	return body, nil
 }
 
+func GetPostPrice(tx string) (int32, error) {
+	query := fmt.Sprintf(`{
+		transactions(
+			tags: [
+				{ name: "App-Name", values: ["%s"]},
+				{ name: "Version", values: ["%s"]},
+				{ name: "Type", values: ["%s"]},
+				{ name: "Target", values: ["%s"]}
+			]
+		)
+		{
+			edges {
+				node {
+					id
+					quantity {
+						winston
+					}
+				}
+			}
+		}
+	}`, common.TX_APP_NAME, common.TX_APP_VERSION, common.TX_TYPE_SET_PRICE, tx)
+
+	jsonData, err := QueryArweave(query)
+	if err != nil {
+		return 0, fmt.Errorf("query error: %w", err)
+	}
+
+	var result common.ArQueryResult
+	err = json.Unmarshal(jsonData, &result)
+	if err != nil {
+		return 0, fmt.Errorf("error unmarshalling JSON: %w", err)
+	}
+
+	if len(result.Data.Transactions.Edges) == 0 {
+		return 0, fmt.Errorf("no price set for transaction")
+	}
+
+	// Convert winston string to int32
+	winston, err := strconv.ParseInt(result.Data.Transactions.Edges[0].Node.Quantity.Winston, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("error parsing winston amount: %w", err)
+	}
+
+	return int32(winston), nil
+}
+
 func CheckPayment(sender string, tx string) (bool, error) {
+	// Get the required price first
+	requiredPrice, err := GetPostPrice(tx)
+	if err != nil {
+		return false, fmt.Errorf("error getting post price: %w", err)
+	}
+
 	query := fmt.Sprintf(`{
 		transactions(
 			owners: ["%s"],
@@ -74,6 +127,9 @@ func CheckPayment(sender string, tx string) (bool, error) {
 			edges {
 				node {
 					id
+					quantity {
+						winston
+					}
 				}
 			}
 		}
@@ -81,21 +137,26 @@ func CheckPayment(sender string, tx string) (bool, error) {
 
 	jsonData, err := QueryArweave(query)
 	if err != nil {
-		fmt.Println("Query error:", err)
-		return false, err
+		return false, fmt.Errorf("query error: %w", err)
 	}
 
 	var result common.ArQueryResult
 	err = json.Unmarshal(jsonData, &result)
 	if err != nil {
-		fmt.Println("Error unmarshalling JSON:", err)
+		return false, fmt.Errorf("error unmarshalling JSON: %w", err)
+	}
+
+	if len(result.Data.Transactions.Edges) == 0 {
 		return false, nil
 	}
 
-	if len(result.Data.Transactions.Edges) > 0 {
-		return true, nil
+	// Check if payment amount matches required price
+	paidAmount, err := strconv.ParseInt(result.Data.Transactions.Edges[0].Node.Quantity.Winston, 10, 32)
+	if err != nil {
+		return false, fmt.Errorf("error parsing payment amount: %w", err)
 	}
-	return false, nil
+
+	return int32(paidAmount) >= requiredPrice, nil
 }
 
 func IsDataPrivate(fullId string, tx string) (bool, error) {

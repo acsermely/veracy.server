@@ -8,18 +8,18 @@ import (
 )
 
 // GATEWAYS
-const (
-	ARWEAVE_URL        = "https://arweave.net"
-	BUNDLER_URL        = "https://node2.irys.xyz"
-	ACTIVATION_ADDRESS = "8vAopD3Fv7QnEqG00-E6aSyLaL9WKZpHmeTPWyNxs9c"
-)
+// const (
+// 	ARWEAVE_URL        = "https://arweave.net"
+// 	BUNDLER_URL        = "https://node2.irys.xyz"
+// 	ACTIVATION_ADDRESS = "8vAopD3Fv7QnEqG00-E6aSyLaL9WKZpHmeTPWyNxs9c"
+// )
 
 // TEST GATEWAYS
-// const (
-// 	BUNDLER_URL = "https://devnet.irys.xyz"
-// 	ARWEAVE_URL = "http://localhost:1984"
-// ACTIVATION_ADDRESS = "0S00yFATR2ozqXiq0XT6EjnB0EBc5xHW35HPZpSK1J8" // Only for Testing
-// )
+const (
+	BUNDLER_URL        = "https://devnet.irys.xyz"
+	ARWEAVE_URL        = "http://localhost:1984"
+	ACTIVATION_ADDRESS = "0S00yFATR2ozqXiq0XT6EjnB0EBc5xHW35HPZpSK1J8" // Only for Testing
+)
 
 // TX VALUES
 const (
@@ -39,10 +39,15 @@ type Owner struct {
 	Address string `json:"address"`
 }
 
+type Quantity struct {
+	Winston string `json:"winston"`
+}
+
 type Node struct {
-	ID        string `json:"id"`
-	Recipient string `json:"recipient"`
-	Owner     Owner  `json:"owner"`
+	ID        string   `json:"id"`
+	Recipient string   `json:"recipient,omitempty"`
+	Owner     Owner    `json:"owner,omitempty"`
+	Quantity  Quantity `json:"quantity,omitempty"`
 }
 
 type Edge struct {
