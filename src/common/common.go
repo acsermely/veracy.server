@@ -48,6 +48,7 @@ type Node struct {
 	Recipient string   `json:"recipient,omitempty"`
 	Owner     Owner    `json:"owner,omitempty"`
 	Quantity  Quantity `json:"quantity,omitempty"`
+	Timestamp int64    `json:"timestamp"`
 }
 
 type Edge struct {

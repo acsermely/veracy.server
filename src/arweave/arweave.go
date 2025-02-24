@@ -79,6 +79,7 @@ func GetPostPrice(uploader string, post string) (int64, error) {
 					quantity {
 						winston
 					}
+					timestamp
 				}
 			}
 		}
@@ -89,23 +90,80 @@ func GetPostPrice(uploader string, post string) (int64, error) {
 		return 0, fmt.Errorf("query error: %w", err)
 	}
 
-	var result common.ArQueryResult
-	err = json.Unmarshal(jsonData, &result)
+	var setPriceResults common.ArQueryResult
+	err = json.Unmarshal(jsonData, &setPriceResults)
 	if err != nil {
 		return 0, fmt.Errorf("error unmarshalling JSON: %w", err)
 	}
 
-	if len(result.Data.Transactions.Edges) == 0 {
+	if len(setPriceResults.Data.Transactions.Edges) == 0 {
 		return 0, fmt.Errorf("no price set for transaction")
 	}
 
-	// Convert winston string to int64
-	winston, err := strconv.ParseInt(result.Data.Transactions.Edges[0].Node.Quantity.Winston, 10, 64)
+	// Get the payment transaction timestamp and quantity
+	paymentQuery := fmt.Sprintf(`{
+		transactions(
+			owners: ["%s"],
+			tags: [
+				{ name: "App-Name", values: ["%s"]},
+				{ name: "Version", values: ["%s"]},
+				{ name: "Type", values: ["%s"]},
+				{ name: "Target", values: ["%s"]}
+			]
+		)
+		{
+			edges {
+				node {
+					timestamp
+					quantity {
+						winston
+					}
+				}
+			}
+		}
+	}`, uploader, common.TX_APP_NAME, common.TX_APP_VERSION, common.TX_TYPE_PAYMENT, post)
+
+	paymentData, err := QueryArweave(paymentQuery)
 	if err != nil {
-		return 0, fmt.Errorf("error parsing winston amount: %w", err)
+		return 0, fmt.Errorf("payment query error: %w", err)
 	}
 
-	return winston, nil
+	var paymentResult common.ArQueryResult
+	err = json.Unmarshal(paymentData, &paymentResult)
+	if err != nil {
+		return 0, fmt.Errorf("error unmarshalling payment JSON: %w", err)
+	}
+
+	if len(paymentResult.Data.Transactions.Edges) == 0 {
+		return 0, fmt.Errorf("no payment transaction found")
+	}
+
+	paymentTimestamp := paymentResult.Data.Transactions.Edges[0].Node.Timestamp
+	paymentQuantity, err := strconv.ParseInt(paymentResult.Data.Transactions.Edges[0].Node.Quantity.Winston, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("error parsing payment amount: %w", err)
+	}
+
+	// Find the most recent price set before the payment that matches the payment amount
+	var validPrice int64 = 0
+	for _, edge := range setPriceResults.Data.Transactions.Edges {
+		if edge.Node.Timestamp <= paymentTimestamp {
+			priceAmount, err := strconv.ParseInt(edge.Node.Quantity.Winston, 10, 64)
+			if err != nil {
+				continue
+			}
+			if paymentQuantity >= priceAmount {
+				validPrice = priceAmount
+				break
+			}
+		}
+	}
+
+	if validPrice == 0 {
+		return 0, fmt.Errorf("no valid price found before payment")
+	}
+
+	return validPrice, nil
 }
 
 func CheckPayment(sender string, tx string, uploader string, postId string) (bool, error) {

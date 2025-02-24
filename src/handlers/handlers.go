@@ -287,7 +287,6 @@ func Image(w http.ResponseWriter, r *http.Request) {
 		if storedUser.WalletID != wallet {
 			paid, err := arweave.CheckPayment(storedUser.WalletID, tx, wallet, post)
 			if err != nil {
-				
 				http.Error(w, err.Error(), http.StatusServiceUnavailable)
 				return
 			}
