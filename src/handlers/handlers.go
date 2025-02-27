@@ -369,3 +369,62 @@ func GetInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(info)
 }
+
+func GetMessages(w http.ResponseWriter, r *http.Request) {
+	storedUser := r.Context().Value(CONTEXT_USER_OBJECT_KEY).(db.UserKey)
+
+	messages, err := db.GetInboxMessages(storedUser.WalletID)
+	if err != nil {
+		http.Error(w, "Failed to get messages", http.StatusInternalServerError)
+		return
+	}
+
+	response := GetMessagesResponse{
+		Messages: messages,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func SendMessage(w http.ResponseWriter, r *http.Request) {
+	storedUser := r.Context().Value(CONTEXT_USER_OBJECT_KEY).(db.UserKey)
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req SendMessageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	// Check if recipient exists in local keys table
+	_, err := db.GetUserKey(req.Recipient)
+	if err == nil {
+		// Recipient exists locally, add to their inbox
+		err = db.AddInboxMessage(req.Recipient, storedUser.WalletID, req.Message)
+		if err != nil {
+			http.Error(w, "Failed to send message", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Recipient not found locally, publish to distributed network
+	received, err := distributed.PublishInboxMessage(req.Recipient, storedUser.WalletID, req.Message)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to send message to distributed network: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if !received {
+		http.Error(w, "Message was not delivered to any recipient", http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}

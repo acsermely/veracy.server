@@ -2,7 +2,10 @@ package distributed
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/acsermely/veracy.server/src/db"
@@ -15,6 +18,21 @@ import (
 
 const INBOX_PROTOCOL = "/inbox/1.0.0"
 const INBOX_TOPIC = "inbox-messages"
+const MESSAGE_TIMEOUT = 10 * time.Second
+
+// messageResponseMap holds channels for message delivery responses
+var messageResponseMap = make(map[string]chan bool)
+var messageResponseMutex sync.Mutex
+
+// generateMessageID creates a random message ID
+func generateMessageID() string {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to timestamp if random fails
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(bytes)
+}
 
 func initInbox() error {
 	// Join inbox topic
@@ -68,18 +86,19 @@ func handleInboxMessages(sub *pubsub.Subscription) {
 		err = db.AddInboxMessage(pbMsg.User, pbMsg.Sender, pbMsg.Message)
 		if err != nil {
 			fmt.Printf("Error adding message to inbox: %v\n", err)
+			go sendInboxResponse(msg.ReceivedFrom, false, pbMsg.MessageId)
 			continue
 		}
 
-		// Send direct response to sender
-		go sendInboxResponse(msg.ReceivedFrom, true)
+		// Send positive response to sender
+		go sendInboxResponse(msg.ReceivedFrom, true, pbMsg.MessageId)
 	}
 }
 
 func handleInboxResponse(stream network.Stream) {
 	defer stream.Close()
 
-	// Create a buffer to read the data - increased size for longer error messages
+	// Create a buffer to read the data
 	data := make([]byte, 1024)
 	n, err := stream.Read(data)
 	if err != nil {
@@ -94,14 +113,20 @@ func handleInboxResponse(stream network.Stream) {
 		return
 	}
 
-	if !resp.Received {
-		fmt.Printf("Message delivery failed\n")
+	// Send response to waiting channel if exists
+	messageResponseMutex.Lock()
+	if ch, exists := messageResponseMap[resp.MessageId]; exists {
+		ch <- resp.Received
+		close(ch)
+		delete(messageResponseMap, resp.MessageId)
 	}
+	messageResponseMutex.Unlock()
 }
 
-func sendInboxResponse(to peer.ID, received bool) {
+func sendInboxResponse(to peer.ID, received bool, messageId string) {
 	resp := &pb.InboxResponse{
-		Received: received,
+		Received:  received,
+		MessageId: messageId,
 	}
 
 	data, err := proto.Marshal(resp)
@@ -123,28 +148,52 @@ func sendInboxResponse(to peer.ID, received bool) {
 	}
 }
 
-func PublishInboxMessage(user, sender, message string) error {
+func PublishInboxMessage(user, sender, message string) (bool, error) {
 	topic, ok := Node.Topics[INBOX_TOPIC]
 	if !ok {
-		return fmt.Errorf("inbox topic not initialized")
+		return false, fmt.Errorf("inbox topic not initialized")
 	}
+
+	// Generate unique message ID
+	messageId := generateMessageID()
 
 	msg := &pb.InboxMessage{
 		User:      user,
 		Sender:    sender,
 		Message:   message,
 		Timestamp: time.Now().Unix(),
+		MessageId: messageId,
 	}
 
 	data, err := proto.Marshal(msg)
 	if err != nil {
-		return fmt.Errorf("failed to marshal message: %w", err)
+		return false, fmt.Errorf("failed to marshal message: %w", err)
 	}
 
+	// Create response channel
+	responseChan := make(chan bool)
+	messageResponseMutex.Lock()
+	messageResponseMap[messageId] = responseChan
+	messageResponseMutex.Unlock()
+
+	// Publish message
 	err = topic.Publish(context.Background(), data)
 	if err != nil {
-		return fmt.Errorf("failed to publish message: %w", err)
+		messageResponseMutex.Lock()
+		delete(messageResponseMap, messageId)
+		messageResponseMutex.Unlock()
+		return false, fmt.Errorf("failed to publish message: %w", err)
 	}
 
-	return nil
+	// Wait for response with timeout
+	select {
+	case received := <-responseChan:
+		// the channel is closed when the response is sent
+		return received, nil
+	case <-time.After(MESSAGE_TIMEOUT):
+		messageResponseMutex.Lock()
+		delete(messageResponseMap, messageId)
+		messageResponseMutex.Unlock()
+		return false, fmt.Errorf("message delivery timeout")
+	}
 }

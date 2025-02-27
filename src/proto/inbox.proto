@@ -8,8 +8,10 @@ message InboxMessage {
     string sender = 2;
     string message = 3;
     int64 timestamp = 4;
+    string message_id = 5;
 }
 
 message InboxResponse {
     bool received = 1;
+    string message_id = 2;
 } 

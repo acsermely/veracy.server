@@ -1,6 +1,10 @@
 package handlers
 
-import "time"
+import (
+	"time"
+
+	"github.com/acsermely/veracy.server/src/db"
+)
 
 type UserKeyBody struct {
 	WalletID string `json:"wallet"`
@@ -39,4 +43,13 @@ type FeedbackBody struct {
 	Type    string `json:"feedbackType"`
 	Target  string `json:"target"`
 	Content string `json:"content"`
+}
+
+type SendMessageRequest struct {
+	Recipient string `json:"recipient"`
+	Message   string `json:"message"`
+}
+
+type GetMessagesResponse struct {
+	Messages []db.InboxMessage `json:"messages"`
 }
