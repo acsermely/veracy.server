@@ -1,0 +1,15 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "github.com/acsermely/veracy.server/distributed/pb";
+
+message InboxMessage {
+    string user = 1;
+    string sender = 2;
+    string message = 3;
+    int64 timestamp = 4;
+}
+
+message InboxResponse {
+    bool received = 1;
+} 

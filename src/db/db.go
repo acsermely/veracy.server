@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -41,6 +42,14 @@ const (
 		chal TEXT
     );`
 
+	createInboxTableSQL = `CREATE TABLE IF NOT EXISTS inbox (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user TEXT NOT NULL,
+        sender TEXT NOT NULL,
+        message TEXT NOT NULL,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    );`
+
 	checkImagesColumnsSQL = `PRAGMA table_info(images);`
 
 	initAdminTableSQL = `INSERT OR REPLACE INTO admin (
@@ -67,6 +76,13 @@ type Feedback struct {
 	Target  string
 	Content string
 	Done    bool
+}
+
+type InboxMessage struct {
+	User      string    `json:"user"`
+	Sender    string    `json:"sender"`
+	Message   string    `json:"message"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 var Database *sql.DB
@@ -127,6 +143,11 @@ func Create() (*sql.DB, error) {
 	}
 
 	_, err = database.Exec(createFeedbackTableSQL)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = database.Exec(createInboxTableSQL)
 	if err != nil {
 		return nil, err
 	}
@@ -302,4 +323,84 @@ func UpdateFeedbackDone(id int, done bool) error {
 	query := `UPDATE feedback SET done = ? WHERE id = ?`
 	_, err := Database.Exec(query, done, id)
 	return err
+}
+
+func AddInboxMessage(user, sender, message string) error {
+	query := `INSERT INTO inbox (user, sender, message) VALUES (?, ?, ?)`
+	_, err := Database.Exec(query, user, sender, message)
+	if err != nil {
+		return fmt.Errorf("failed to add inbox message: %w", err)
+	}
+	return nil
+}
+
+func RemoveInboxMessage(user string, timestamps []time.Time) error {
+	if len(timestamps) == 0 {
+		return fmt.Errorf("no timestamps provided")
+	}
+
+	// Create the placeholder string for the timestamps
+	placeholders := make([]string, len(timestamps))
+	args := make([]interface{}, len(timestamps)+1)
+	args[0] = user
+
+	for i := range timestamps {
+		placeholders[i] = "?"
+		args[i+1] = timestamps[i]
+	}
+
+	query := fmt.Sprintf(
+		`DELETE FROM inbox WHERE user = ? AND timestamp IN (%s)`,
+		strings.Join(placeholders, ","),
+	)
+
+	result, err := Database.Exec(query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to remove inbox messages: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error checking affected rows: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("no messages found for user %s with the provided timestamps", user)
+	}
+
+	return nil
+}
+
+func GetInboxMessages(user string) ([]InboxMessage, error) {
+	query := `SELECT user, sender, message, timestamp FROM inbox WHERE user = ? ORDER BY timestamp DESC`
+	rows, err := Database.Query(query, user)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query inbox messages: %w", err)
+	}
+	defer rows.Close()
+
+	var messages []InboxMessage
+	for rows.Next() {
+		var msg InboxMessage
+		err := rows.Scan(&msg.User, &msg.Sender, &msg.Message, &msg.Timestamp)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan inbox message: %w", err)
+		}
+		messages = append(messages, msg)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating inbox rows: %w", err)
+	}
+
+	return messages, nil
+}
+
+func GetInboxCount(user string) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM inbox WHERE user = ?`
+	err := Database.QueryRow(query, user).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get inbox count: %w", err)
+	}
+	return count, nil
 }

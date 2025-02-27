@@ -346,3 +346,26 @@ func AddFeedback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+type UserInfo struct {
+	WalletID   string `json:"walletId"`
+	InboxCount int    `json:"inboxCount"`
+}
+
+func GetInfo(w http.ResponseWriter, r *http.Request) {
+	storedUser := r.Context().Value(CONTEXT_USER_OBJECT_KEY).(db.UserKey)
+
+	inboxCount, err := db.GetInboxCount(storedUser.WalletID)
+	if err != nil {
+		http.Error(w, "Failed to get inbox count", http.StatusInternalServerError)
+		return
+	}
+
+	info := UserInfo{
+		WalletID:   storedUser.WalletID,
+		InboxCount: inboxCount,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(info)
+}

@@ -22,14 +22,16 @@ import (
 
 type ChannelMap map[string][]chan []byte
 
-var Node *ContentNode
-var ctx context.Context
+var (
+	Node *ContentNode
+	ctx  context.Context
 
-var arriveChans ChannelMap
-var arriveMutex sync.Mutex
+	arriveChans ChannelMap
+	arriveMutex sync.Mutex
 
-// Dynamic Topics
-var GroupBroadcastTopic string
+	// Dynamic Topics
+	GroupBroadcastTopic string
+)
 
 const (
 	NEED_CONTENT_BROADCAST_TOPIC             = "need-content-broadcast-topic"
@@ -40,7 +42,6 @@ const (
 
 func Connect(conf *config.AppConfig) *ContentNode {
 	ctx = context.Background()
-
 	arriveChans = make(ChannelMap)
 
 	addrs := []string{
@@ -80,6 +81,10 @@ func Connect(conf *config.AppConfig) *ContentNode {
 	}
 	Node.h.SetStreamHandler(KEY_TRANSFER_PROTOCOL, groupKeyTransferHandler)
 	go listenToGroupKeyTopic(groupSub)
+
+	if err := initInbox(); err != nil {
+		fmt.Printf("Warning: failed to initialize inbox protocol: %v\n", err)
+	}
 
 	return Node
 }
