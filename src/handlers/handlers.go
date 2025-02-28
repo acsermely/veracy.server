@@ -350,6 +350,8 @@ func AddFeedback(w http.ResponseWriter, r *http.Request) {
 type UserInfo struct {
 	WalletID   string `json:"walletId"`
 	InboxCount int    `json:"inboxCount"`
+	ImageWidth int    `json:"imageWidth"`
+	ImageSize  int    `json:"imageSize"`
 }
 
 func GetInfo(w http.ResponseWriter, r *http.Request) {
@@ -363,6 +365,8 @@ func GetInfo(w http.ResponseWriter, r *http.Request) {
 
 	info := UserInfo{
 		WalletID:   storedUser.WalletID,
+		ImageWidth: 1000,
+		ImageSize:  200,
 		InboxCount: inboxCount,
 	}
 
@@ -423,6 +427,34 @@ func SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	if !received {
 		http.Error(w, "Message was not delivered to any recipient", http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func MessageSaved(w http.ResponseWriter, r *http.Request) {
+	storedUser := r.Context().Value(CONTEXT_USER_OBJECT_KEY).(db.UserKey)
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req MessageSavedRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Timestamps) == 0 {
+		http.Error(w, "No timestamps provided", http.StatusBadRequest)
+		return
+	}
+
+	err := db.RemoveInboxMessage(storedUser.WalletID, req.Timestamps)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to remove messages: %v", err), http.StatusInternalServerError)
 		return
 	}
 

@@ -46,7 +46,8 @@ func initServer(port string) *http.Server {
 	mux.HandleFunc("/getInfo", handlers.WalletMiddleware(handlers.GetInfo))
 	mux.HandleFunc("/feedback", handlers.WalletMiddleware(handlers.AddFeedback))
 	mux.HandleFunc("/messages", handlers.WalletMiddleware(handlers.GetMessages))
-	mux.HandleFunc("/sendMessage", handlers.WalletMiddleware(handlers.SendMessage))
+	mux.HandleFunc("/sendMessages", handlers.WalletMiddleware(handlers.SendMessage))
+	mux.HandleFunc("/savedMessages", handlers.WalletMiddleware(handlers.MessageSaved))
 
 	mux.HandleFunc("/img", handlers.Image)
 	mux.HandleFunc("/registerKey", handlers.Register)

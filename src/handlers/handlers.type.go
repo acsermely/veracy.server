@@ -53,3 +53,7 @@ type SendMessageRequest struct {
 type GetMessagesResponse struct {
 	Messages []db.InboxMessage `json:"messages"`
 }
+
+type MessageSavedRequest struct {
+	Timestamps []time.Time `json:"timestamps"`
+}
