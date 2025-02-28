@@ -83,7 +83,7 @@ func handleInboxMessages(sub *pubsub.Subscription) {
 		}
 
 		// Add message to inbox
-		err = db.AddInboxMessage(pbMsg.User, pbMsg.Sender, pbMsg.Message)
+		_, err = db.AddInboxMessage(pbMsg.User, pbMsg.Sender, pbMsg.Message)
 		if err != nil {
 			fmt.Printf("Error adding message to inbox: %v\n", err)
 			go sendInboxResponse(msg.ReceivedFrom, false, pbMsg.MessageId)

@@ -409,7 +409,7 @@ func SendMessage(w http.ResponseWriter, r *http.Request) {
 	_, err := db.GetUserKey(req.Recipient)
 	if err == nil {
 		// Recipient exists locally, add to their inbox
-		err = db.AddInboxMessage(req.Recipient, storedUser.WalletID, req.Message)
+		_, err = db.AddInboxMessage(req.Recipient, storedUser.WalletID, req.Message)
 		if err != nil {
 			http.Error(w, "Failed to send message", http.StatusInternalServerError)
 			return
@@ -447,12 +447,12 @@ func MessageSaved(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.Timestamps) == 0 {
-		http.Error(w, "No timestamps provided", http.StatusBadRequest)
+	if len(req.MessageIds) == 0 {
+		http.Error(w, "No message IDs provided", http.StatusBadRequest)
 		return
 	}
 
-	err := db.RemoveInboxMessage(storedUser.WalletID, req.Timestamps)
+	err := db.RemoveInboxMessage(storedUser.WalletID, req.MessageIds)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to remove messages: %v", err), http.StatusInternalServerError)
 		return

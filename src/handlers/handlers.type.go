@@ -55,5 +55,5 @@ type GetMessagesResponse struct {
 }
 
 type MessageSavedRequest struct {
-	Timestamps []time.Time `json:"timestamps"`
+	MessageIds []int64 `json:"messageIds"`
 }

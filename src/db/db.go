@@ -79,6 +79,7 @@ type Feedback struct {
 }
 
 type InboxMessage struct {
+	ID        int64     `json:"id"`
 	User      string    `json:"user"`
 	Sender    string    `json:"sender"`
 	Message   string    `json:"message"`
@@ -325,32 +326,38 @@ func UpdateFeedbackDone(id int, done bool) error {
 	return err
 }
 
-func AddInboxMessage(user, sender, message string) error {
+func AddInboxMessage(user, sender, message string) (int64, error) {
 	query := `INSERT INTO inbox (user, sender, message) VALUES (?, ?, ?)`
-	_, err := Database.Exec(query, user, sender, message)
+	result, err := Database.Exec(query, user, sender, message)
 	if err != nil {
-		return fmt.Errorf("failed to add inbox message: %w", err)
+		return 0, fmt.Errorf("failed to add inbox message: %w", err)
 	}
-	return nil
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get message ID: %w", err)
+	}
+
+	return id, nil
 }
 
-func RemoveInboxMessage(user string, timestamps []time.Time) error {
-	if len(timestamps) == 0 {
-		return fmt.Errorf("no timestamps provided")
+func RemoveInboxMessage(user string, messageIds []int64) error {
+	if len(messageIds) == 0 {
+		return fmt.Errorf("no message IDs provided")
 	}
 
-	// Create the placeholder string for the timestamps
-	placeholders := make([]string, len(timestamps))
-	args := make([]interface{}, len(timestamps)+1)
+	// Create the placeholder string for the IDs
+	placeholders := make([]string, len(messageIds))
+	args := make([]interface{}, len(messageIds)+1)
 	args[0] = user
 
-	for i := range timestamps {
+	for i := range messageIds {
 		placeholders[i] = "?"
-		args[i+1] = timestamps[i]
+		args[i+1] = messageIds[i]
 	}
 
 	query := fmt.Sprintf(
-		`DELETE FROM inbox WHERE user = ? AND timestamp IN (%s)`,
+		`DELETE FROM inbox WHERE user = ? AND id IN (%s)`,
 		strings.Join(placeholders, ","),
 	)
 
@@ -364,14 +371,14 @@ func RemoveInboxMessage(user string, timestamps []time.Time) error {
 		return fmt.Errorf("error checking affected rows: %w", err)
 	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("no messages found for user %s with the provided timestamps", user)
+		return fmt.Errorf("no messages found for user %s with the provided IDs", user)
 	}
 
 	return nil
 }
 
 func GetInboxMessages(user string) ([]InboxMessage, error) {
-	query := `SELECT user, sender, message, timestamp FROM inbox WHERE user = ? ORDER BY timestamp DESC`
+	query := `SELECT id, user, sender, message, timestamp FROM inbox WHERE user = ? ORDER BY timestamp DESC`
 	rows, err := Database.Query(query, user)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query inbox messages: %w", err)
@@ -381,7 +388,7 @@ func GetInboxMessages(user string) ([]InboxMessage, error) {
 	var messages []InboxMessage
 	for rows.Next() {
 		var msg InboxMessage
-		err := rows.Scan(&msg.User, &msg.Sender, &msg.Message, &msg.Timestamp)
+		err := rows.Scan(&msg.ID, &msg.User, &msg.Sender, &msg.Message, &msg.Timestamp)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan inbox message: %w", err)
 		}
