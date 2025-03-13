@@ -101,7 +101,7 @@ func GetPostPrice(uploader string, postId string, tx string) (int64, error) {
 	if len(setPriceResults.Data.Transactions.Edges) == 0 {
 		return 0, fmt.Errorf("no price set for transaction")
 	}
-
+	fmt.Println("GotSetPriceTx")
 	// Get the payment transaction timestamp and quantity
 	paymentQuery := fmt.Sprintf(`{
 		transactions(
@@ -141,7 +141,7 @@ func GetPostPrice(uploader string, postId string, tx string) (int64, error) {
 	if len(paymentResult.Data.Transactions.Edges) == 0 {
 		return 0, fmt.Errorf("no payment transaction found")
 	}
-
+	fmt.Println("GotPaymentTx")
 	paymentTimestamp := paymentResult.Data.Transactions.Edges[0].Node.Block.Timestamp
 	fmt.Println(paymentTimestamp)
 	fmt.Println("-")
@@ -177,6 +177,8 @@ func GetPostPrice(uploader string, postId string, tx string) (int64, error) {
 func CheckPayment(sender string, tx string, uploader string, postId string) (bool, error) {
 	// Get the required price first - use wallet (content owner) as sender
 	requiredPrice, err := GetPostPrice(uploader, postId, tx)
+	fmt.Println("Price:")
+	fmt.Println(requiredPrice)
 	if err != nil {
 		return false, nil
 	}
