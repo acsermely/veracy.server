@@ -79,7 +79,9 @@ func GetPostPrice(uploader string, postId string, tx string) (int64, error) {
 					quantity {
 						winston
 					}
-					timestamp
+					block {
+						timestamp
+					}
 				}
 			}
 		}
