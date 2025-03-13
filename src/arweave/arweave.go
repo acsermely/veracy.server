@@ -143,6 +143,8 @@ func GetPostPrice(uploader string, postId string, tx string) (int64, error) {
 	}
 
 	paymentTimestamp := paymentResult.Data.Transactions.Edges[0].Node.Block.Timestamp
+	fmt.Println(paymentTimestamp)
+	fmt.Println("-")
 	paymentQuantity, err := strconv.ParseInt(paymentResult.Data.Transactions.Edges[0].Node.Quantity.Winston, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("error parsing payment amount: %w", err)
@@ -151,6 +153,8 @@ func GetPostPrice(uploader string, postId string, tx string) (int64, error) {
 	// Find the most recent price set before the payment that matches the payment amount
 	var validPrice int64 = 0
 	for _, edge := range setPriceResults.Data.Transactions.Edges {
+		fmt.Println(edge.Node.Block.Timestamp)
+		fmt.Println("---")
 		if edge.Node.Block.Timestamp <= paymentTimestamp {
 			priceAmount, err := strconv.ParseInt(edge.Node.Quantity.Winston, 10, 64)
 			if err != nil {
