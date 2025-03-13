@@ -60,7 +60,7 @@ func QueryArweave(query string) ([]byte, error) {
 	return body, nil
 }
 
-func GetPostPrice(uploader string, postId string, tx string) (int64, error) {
+func GetPostPrice(uploader string, postId string, sender string, tx string) (int64, error) {
 	query := fmt.Sprintf(`{
 		transactions(
 			owners: ["%s"],
@@ -125,7 +125,7 @@ func GetPostPrice(uploader string, postId string, tx string) (int64, error) {
 				}
 			}
 		}
-	}`, uploader, common.TX_APP_NAME, common.TX_APP_VERSION, common.TX_TYPE_PAYMENT, tx)
+	}`, sender, common.TX_APP_NAME, common.TX_APP_VERSION, common.TX_TYPE_PAYMENT, tx)
 
 	paymentData, err := QueryArweave(paymentQuery)
 	if err != nil {
@@ -176,7 +176,7 @@ func GetPostPrice(uploader string, postId string, tx string) (int64, error) {
 
 func CheckPayment(sender string, tx string, uploader string, postId string) (bool, error) {
 	// Get the required price first - use wallet (content owner) as sender
-	requiredPrice, err := GetPostPrice(uploader, postId, tx)
+	requiredPrice, err := GetPostPrice(uploader, postId, sender, tx)
 	fmt.Println("Price:")
 	fmt.Println(requiredPrice)
 	if err != nil {
