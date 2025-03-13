@@ -39,6 +39,10 @@ type Owner struct {
 	Address string `json:"address"`
 }
 
+type Block struct {
+	Timestamp int64 `json:"timestamp"`
+}
+
 type Quantity struct {
 	Winston string `json:"winston"`
 }
@@ -48,7 +52,7 @@ type Node struct {
 	Recipient string   `json:"recipient,omitempty"`
 	Owner     Owner    `json:"owner,omitempty"`
 	Quantity  Quantity `json:"quantity,omitempty"`
-	Timestamp int64    `json:"timestamp"`
+	Block     Block    `json:"block,omitempty"`
 }
 
 type Edge struct {
